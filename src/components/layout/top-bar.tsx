@@ -69,15 +69,19 @@ function UserMenu() {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-[calc(100%+4px)] z-50 w-48 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md"
+          className={cn(
+            "absolute right-0 top-[calc(100%+4px)] z-[200] w-48 overflow-hidden rounded-xl p-1",
+            "border border-white/10 bg-card/96 text-popover-foreground shadow-[0_8px_32px_rgba(0,0,0,0.45)]",
+            "ring-1 ring-inset ring-white/5 backdrop-blur-2xl backdrop-saturate-150",
+          )}
         >
-          <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+          <p className="px-2.5 py-2 text-xs font-medium text-muted-foreground">
             33Seconds
           </p>
-          <div className="my-1 h-px bg-border" />
+          <div className="my-1 h-px bg-white/10" />
           {menuItems.map((item) => (
             <div key={item.label}>
-              {item.separator && <div className="my-1 h-px bg-border" />}
+              {item.separator && <div className="my-1 h-px bg-white/10" />}
               <button
                 type="button"
                 role="menuitem"
@@ -86,7 +90,9 @@ function UserMenu() {
                   setOpen(false);
                 }}
                 className={cn(
-                  "flex w-full rounded-md px-2 py-1.5 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground"
+                  "flex w-full rounded-lg px-2.5 py-2 text-left text-sm outline-none transition-colors",
+                  "hover:bg-white/10 active:bg-white/15",
+                  "focus-visible:bg-white/10 focus-visible:text-foreground",
                 )}
               >
                 {item.label}
@@ -103,7 +109,7 @@ export function TopBar({ breadcrumbs, subtitle }: TopBarProps) {
   const { toggleMobile } = useSidebar();
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-card/70 px-4 backdrop-blur-md sm:px-6">
+    <header className="relative z-[100] flex h-14 shrink-0 items-center gap-3 border-b border-border bg-card/70 px-4 backdrop-blur-md sm:px-6">
       <Button
         type="button"
         variant="ghost"
