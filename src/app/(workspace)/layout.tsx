@@ -8,6 +8,10 @@ const PAGE_META: Record<
   { breadcrumbs: { label: string }[]; subtitle?: string }
 > = {
   "/": {
+    breadcrumbs: [{ label: "Workspace" }, { label: "How it works" }],
+    subtitle: "A quick guide to the Review Desk demo",
+  },
+  "/dashboard": {
     breadcrumbs: [{ label: "Workspace" }, { label: "Dashboard" }],
     subtitle: "Overview of recent creative reviews",
   },

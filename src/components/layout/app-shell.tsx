@@ -20,8 +20,8 @@ export function AppShell({ children, breadcrumbs, subtitle }: AppShellProps) {
           <SidebarNav />
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             <TopBar breadcrumbs={breadcrumbs} subtitle={subtitle} />
-            <main className="flex-1 overflow-y-auto">
-              <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6 sm:py-6">{children}</div>
+            <main id="app-main-scroll" className="flex-1 overflow-y-auto">
+              <div className="mx-auto max-w-6xl px-4 pt-4 pb-4 sm:px-6 sm:pt-6 sm:pb-6">{children}</div>
             </main>
           </div>
         </div>

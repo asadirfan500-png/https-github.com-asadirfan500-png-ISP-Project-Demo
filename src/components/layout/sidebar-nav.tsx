@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import {
   BookOpen,
   ClipboardList,
+  HelpCircle,
   History,
   LayoutDashboard,
   PanelLeftClose,
@@ -27,7 +28,8 @@ import {
 } from "lucide-react";
 
 const WORKSPACE_LINKS = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/", label: "How it works", icon: HelpCircle },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/review", label: "Review", icon: ClipboardList },
   { href: "/history", label: "History", icon: History },
 ];
