@@ -1,0 +1,287 @@
+"use client";
+
+import { useCallback, useRef } from "react";
+import { SAMPLE_POSTS } from "@/lib/data/citroen";
+import { PLATFORMS } from "@/lib/data/platforms";
+import type { CreativeFormData, Platform } from "@/lib/types";
+import ClickSpark from "@/components/react-bits/ClickSpark";
+import StarBorder from "@/components/react-bits/StarBorder";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
+import { ImagePlus, Loader2, RotateCcw, Send, X } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+interface CreativeInputFormProps {
+  formData: CreativeFormData;
+  onChange: (data: CreativeFormData) => void;
+  onSubmit: () => void;
+  onReset: () => void;
+  isRunning: boolean;
+  errors: { platform?: string; caption?: string };
+}
+
+export function CreativeInputForm({
+  formData,
+  onChange,
+  onSubmit,
+  onReset,
+  isRunning,
+  errors,
+}: CreativeInputFormProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const reducedMotion = useReducedMotion();
+
+  const handleImageChange = useCallback(
+    (file: File | null) => {
+      if (formData.imagePreviewUrl) {
+        URL.revokeObjectURL(formData.imagePreviewUrl);
+      }
+
+      if (!file) {
+        onChange({ ...formData, imageFile: null, imagePreviewUrl: null });
+        return;
+      }
+
+      onChange({
+        ...formData,
+        imageFile: file,
+        imagePreviewUrl: URL.createObjectURL(file),
+      });
+    },
+    [formData, onChange]
+  );
+
+  const loadSample = (sampleId: "good" | "weak") => {
+    const sample = SAMPLE_POSTS.find((s) => s.id === sampleId);
+    if (!sample) return;
+
+    if (formData.imagePreviewUrl) {
+      URL.revokeObjectURL(formData.imagePreviewUrl);
+    }
+
+    onChange({
+      platform: sample.platform,
+      caption: sample.caption,
+      imageFile: null,
+      imagePreviewUrl: null,
+    });
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file?.type.startsWith("image/")) {
+      handleImageChange(file);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-border bg-card/80 shadow-sm backdrop-blur-sm">
+      <div className="border-b border-border px-4 py-3">
+        <h2 className="text-sm font-semibold">Creative input</h2>
+        <p className="text-xs text-muted-foreground">
+          Platform, copy, and optional visual
+        </p>
+      </div>
+
+      <div className="space-y-5 p-4">
+        <div>
+          <Label className="mb-2 block text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Quick fill
+          </Label>
+          <div className="flex flex-wrap gap-2">
+            {SAMPLE_POSTS.map((sample) => (
+              <Button
+                key={sample.id}
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isRunning}
+                onClick={() => loadSample(sample.id)}
+              >
+                {sample.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="platform">Platform</Label>
+          <div className="flex flex-wrap gap-1.5">
+            {PLATFORMS.map((platform) => (
+              <button
+                key={platform.id}
+                type="button"
+                disabled={isRunning}
+                onClick={() =>
+                  onChange({ ...formData, platform: platform.id as Platform })
+                }
+                className={cn(
+                  "rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
+                  formData.platform === platform.id
+                    ? "border-primary bg-primary/5 text-primary"
+                    : "border-border bg-background text-muted-foreground hover:border-primary/30 hover:text-foreground",
+                  isRunning && "pointer-events-none opacity-50"
+                )}
+              >
+                {platform.label}
+              </button>
+            ))}
+          </div>
+          {errors.platform && (
+            <p className="text-sm text-destructive">{errors.platform}</p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="caption">Caption</Label>
+          <Textarea
+            id="caption"
+            placeholder="Paste your post copy..."
+            rows={6}
+            value={formData.caption}
+            onChange={(e) => onChange({ ...formData, caption: e.target.value })}
+            disabled={isRunning}
+            aria-invalid={!!errors.caption}
+            className="resize-none text-sm"
+          />
+          {errors.caption && (
+            <p className="text-sm text-destructive">{errors.caption}</p>
+          )}
+          <p className="text-xs text-muted-foreground">
+            {formData.caption.length} characters
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Visual asset</Label>
+          <div
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                fileInputRef.current?.click();
+              }
+            }}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+            className={cn(
+              "flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-border bg-muted/20 p-4 transition-colors hover:border-primary/30 hover:bg-muted/40",
+              isRunning && "pointer-events-none opacity-50"
+            )}
+          >
+            {formData.imagePreviewUrl ? (
+              <div className="relative w-full">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={formData.imagePreviewUrl}
+                  alt="Upload preview"
+                  className="mx-auto max-h-36 rounded object-contain"
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="icon-sm"
+                  className="absolute top-0 right-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleImageChange(null);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                  }}
+                >
+                  <X className="size-4" />
+                </Button>
+              </div>
+            ) : (
+              <>
+                <ImagePlus className="mb-1.5 size-6 text-muted-foreground" />
+                <p className="text-xs font-medium">Drop image or click to upload</p>
+              </>
+            )}
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => handleImageChange(e.target.files?.[0] ?? null)}
+          />
+        </div>
+
+        <div className="flex flex-wrap gap-2 border-t border-border pt-4">
+          {reducedMotion ? (
+            <Button onClick={onSubmit} disabled={isRunning} className="flex-1">
+              {isRunning ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Reviewing...
+                </>
+              ) : (
+                <>
+                  <Send className="size-4" />
+                  Submit for review
+                </>
+              )}
+            </Button>
+          ) : (
+            <div className="hidden flex-1 md:block">
+              <ClickSpark sparkColor="#EB4D4B">
+                <StarBorder
+                as="button"
+                type="button"
+                color="#EB4D4B"
+                speed="5s"
+                className="w-full rounded-lg"
+                onClick={onSubmit}
+                disabled={isRunning}
+              >
+                <span className="flex items-center justify-center gap-1.5 px-2 py-1 text-sm font-medium">
+                  {isRunning ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      Reviewing...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="size-4" />
+                      Submit for review
+                    </>
+                  )}
+                </span>
+                </StarBorder>
+              </ClickSpark>
+            </div>
+          )}
+          {!reducedMotion && (
+            <Button onClick={onSubmit} disabled={isRunning} className="flex-1 md:hidden">
+              {isRunning ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Reviewing...
+                </>
+              ) : (
+                <>
+                  <Send className="size-4" />
+                  Submit for review
+                </>
+              )}
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onReset}
+            disabled={isRunning}
+            className="w-full sm:w-auto"
+          >
+            <RotateCcw className="size-4" />
+            Clear
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
