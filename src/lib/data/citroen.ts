@@ -1,4 +1,9 @@
 import type { SamplePost } from "@/lib/types";
+import {
+  HIGH_ENGAGEMENT_SIGNALS,
+  LOW_ENGAGEMENT_SIGNALS,
+  TRAINING_INSIGHTS,
+} from "@/lib/data/citroen-posts-training";
 
 export const CITROEN_CLIENT = {
   name: "Citroën",
@@ -6,32 +11,85 @@ export const CITROEN_CLIENT = {
   tagline: "People who live life on their own terms",
 };
 
+/**
+ * Brand voice calibrated from top vs lowest performing @citroenuk / UGC posts
+ * (see citroen-posts-training.ts). Prefer phrases mirror high-engagement
+ * lifestyle UGC; avoid phrases mirror low-engagement motorsport/generic copy.
+ */
 export const BRAND_VOICE = {
-  traits: ["bold", "human", "optimistic", "conversational", "inclusive"],
+  traits: [
+    "bold",
+    "human",
+    "optimistic",
+    "conversational",
+    "inclusive",
+    "humorous",
+    "relatable",
+  ],
   preferPhrases: [
-    "everyday",
-    "adventure",
-    "your way",
-    "weekend",
-    "freedom",
-    "discover",
-    "journey",
-    "outsider",
-    "electric",
-    "compact",
+    ...new Set([
+      "weekend",
+      "adventure",
+      "family",
+      "kids",
+      "parent",
+      "road trip",
+      "comfy",
+      "comfortable",
+      "reliable",
+      "electric",
+      "fresh car",
+      "day out",
+      "camper",
+      "holidays",
+      "aircross",
+      "berlingo",
+      "everyday",
+      "your way",
+      "freedom",
+      "discover",
+      "journey",
+      "outsider",
+      "compact",
+      "renovation",
+      "diy",
+      "surfing",
+      "ocean",
+      "charity",
+      "partner",
+      "drive",
+    ]),
   ],
   avoidPhrases: [
-    "synergy",
-    "leverage",
-    "premium exclusive",
-    "best-in-class",
-    "paradigm",
-    "utilize",
-    "stakeholders",
-    "disruptive innovation",
-    "luxury lifestyle",
+    ...new Set([
+      "synergy",
+      "leverage",
+      "premium exclusive",
+      "best-in-class",
+      "paradigm",
+      "utilize",
+      "utilise",
+      "stakeholders",
+      "disruptive innovation",
+      "luxury lifestyle",
+      "pole position",
+      "racecraft",
+      "energy management",
+      "speed reborn",
+      "formula e",
+      "trajectory has been recalibrated",
+      "recalibrated",
+      "dark waters",
+      "swipe right",
+      "whatever your job",
+      "abb fia",
+      "world championship",
+    ]),
   ],
-  maxEmojiCount: 3,
+  highEngagementSignals: HIGH_ENGAGEMENT_SIGNALS,
+  lowEngagementSignals: LOW_ENGAGEMENT_SIGNALS,
+  trainingInsights: TRAINING_INSIGHTS,
+  maxEmojiCount: 5,
 };
 
 export const AUDIENCE_PERSONAS = [
@@ -52,19 +110,20 @@ export const AUDIENCE_PERSONAS = [
   },
 ];
 
+/** Sample captions adapted from real high vs low engagement posts */
 export const SAMPLE_POSTS: SamplePost[] = [
   {
     id: "good",
-    label: "Strong post",
+    label: "Strong post (high-engagement style)",
     platform: "instagram",
     caption:
-      "Weekends weren't made for sitting still. The new ë-C3 is ready when you are — compact, electric, and unmistakably Citroën. Where are you heading first? #EverydayOutsiders",
+      "Becoming a parent changes how you drive — from speed to safety, and from passenger princess to terrified snack butler. Having a comfy and reliable car like this C5 Aircross helps you navigate every bump and detour. You'll still be covered in snacks and nursery rhymes, but life feels better on the road. AD @citroenuk #c5aircross #citroenuk #EverydayOutsiders",
   },
   {
     id: "weak",
-    label: "Needs work",
-    platform: "tiktok",
+    label: "Needs work (low-engagement style)",
+    platform: "instagram",
     caption:
-      "Citroën leverages best-in-class synergy to deliver a premium exclusive automotive experience for discerning stakeholders. Our disruptive innovation paradigm utilises cutting-edge EV technology. 🚗✨🔥💯🎉",
+      "Madrid was a stall. The crew is back on set. The trajectory has been recalibrated. We are ready to fly. Copy that, Berlin. Pole position. Energy management. Pure racecraft. #CitroënRacing #SpeedReborn #FormulaE",
   },
 ];

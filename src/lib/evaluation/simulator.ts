@@ -151,6 +151,18 @@ export async function evaluateBestPractice(
   };
 }
 
+function countSignalHits(captionLower: string, signals: string[]): string[] {
+  return signals.filter((signal) => captionLower.includes(signal.toLowerCase()));
+}
+
+function hasFirstPersonStory(caption: string): boolean {
+  return /\b(i|i'm|i’ve|i've|we|we're|my|our)\b/i.test(caption);
+}
+
+function hasAdDisclosure(caption: string): boolean {
+  return /\b(ad|paid partnership|#ad|#pr|\*pr)\b/i.test(caption);
+}
+
 export async function evaluateBrandTone(
   input: EvaluationInput
 ): Promise<CheckResult> {
@@ -159,7 +171,7 @@ export async function evaluateBrandTone(
   const captionLower = input.caption.toLowerCase();
   const findings: Finding[] = [];
   const suggestions: string[] = [];
-  let score = 70;
+  let score = 68;
 
   const matchedPrefer = BRAND_VOICE.preferPhrases.filter((phrase) =>
     captionLower.includes(phrase.toLowerCase())
@@ -167,65 +179,119 @@ export async function evaluateBrandTone(
   const matchedAvoid = BRAND_VOICE.avoidPhrases.filter((phrase) =>
     captionLower.includes(phrase.toLowerCase())
   );
+  const highHits = countSignalHits(
+    captionLower,
+    BRAND_VOICE.highEngagementSignals
+  );
+  const lowHits = countSignalHits(
+    captionLower,
+    BRAND_VOICE.lowEngagementSignals
+  );
 
   if (matchedPrefer.length > 0) {
-    score += matchedPrefer.length * 6;
+    score += Math.min(matchedPrefer.length * 5, 20);
     findings.push({
       type: "strength",
-      message: `On-brand language detected: "${matchedPrefer.slice(0, 2).join('", "')}".`,
+      message: `On-brand lifestyle language detected: "${matchedPrefer.slice(0, 2).join('", "')}".`,
     });
   }
 
   if (matchedAvoid.length > 0) {
-    score -= matchedAvoid.length * 12;
+    score -= matchedAvoid.length * 14;
     findings.push({
       type: "issue",
-      message: `Corporate jargon flagged: "${matchedAvoid.slice(0, 2).join('", "')}".`,
+      message: `Low-engagement / off-voice phrasing flagged: "${matchedAvoid.slice(0, 2).join('", "')}".`,
     });
-    suggestions.push("Replace corporate language with bold, human, conversational copy.");
+    suggestions.push(
+      "Rewrite in everyday human language — top Citroën UK posts lead with real life, not racing jargon or corporate claims."
+    );
+  }
+
+  // Calibrated from 20 real Instagram posts (top vs bottom engagers)
+  if (highHits.length >= 2) {
+    score += Math.min(highHits.length * 3, 18);
+    findings.push({
+      type: "strength",
+      message: `Matches high-engagement caption patterns from real Citroën posts (e.g. "${highHits.slice(0, 3).join('", "')}").`,
+    });
+  }
+
+  if (lowHits.length >= 1) {
+    score -= Math.min(lowHits.length * 10, 35);
+    findings.push({
+      type: "issue",
+      message: `Sounds like low-engagement motorsport / cryptic brand copy (e.g. "${lowHits.slice(0, 2).join('", "')}"). Those posts underperformed vs lifestyle UGC.`,
+    });
+    suggestions.push(
+      "Swap race-recap language for a relatable moment: family journey, day out, DIY trip, or soft EV story."
+    );
+  }
+
+  if (hasFirstPersonStory(input.caption)) {
+    score += 8;
+    findings.push({
+      type: "strength",
+      message: "First-person storytelling — common in top-performing Citroën UGC captions.",
+    });
+  } else {
+    findings.push({
+      type: "info",
+      message: "No clear first-person voice. High engagers often say “I / we / my family”.",
+    });
+    suggestions.push("Tell it from a real person’s point of view.");
+  }
+
+  if (hasAdDisclosure(input.caption)) {
+    score += 4;
+    findings.push({
+      type: "strength",
+      message: "AD/PR disclosure present — expected on creator partnerships.",
+    });
   }
 
   const emojiCount = countEmojis(input.caption);
   if (emojiCount > BRAND_VOICE.maxEmojiCount) {
-    score -= 10;
+    score -= 8;
     findings.push({
       type: "issue",
-      message: `Too many emojis (${emojiCount}) — Citroën social stays restrained and confident.`,
+      message: `Too many emojis (${emojiCount}) for a clear caption.`,
     });
-    suggestions.push(`Limit to ${BRAND_VOICE.maxEmojiCount} emojis or fewer.`);
-  } else if (emojiCount > 0) {
+    suggestions.push(`Aim for about ${BRAND_VOICE.maxEmojiCount} emojis or fewer.`);
+  } else if (emojiCount > 0 && emojiCount <= 3) {
     findings.push({
       type: "strength",
-      message: "Emoji use is within brand guidelines.",
+      message: "Emoji use feels natural for Instagram lifestyle content.",
     });
   }
 
   if (/everyday outsider/i.test(input.caption) || /your way/i.test(input.caption)) {
-    score += 10;
+    score += 8;
     findings.push({
       type: "strength",
       message: "Copy reflects the Everyday Outsiders audience positioning.",
     });
   }
 
-  if (/\b(is|are|was|were)\b/i.test(input.caption) && !hasQuestionHook(input.caption)) {
-    const passiveFeel = /\b(is designed|are designed|was created|is engineered)\b/i.test(input.caption);
-    if (passiveFeel) {
-      score -= 8;
-      findings.push({
-        type: "issue",
-        message: "Passive, product-spec tone detected — Citroën voice is more human and direct.",
-      });
-      suggestions.push("Rewrite from the driver's perspective: what they'll feel, not what we built.");
-    }
+  const passiveFeel = /\b(is designed|are designed|was created|is engineered)\b/i.test(
+    input.caption
+  );
+  if (passiveFeel) {
+    score -= 8;
+    findings.push({
+      type: "issue",
+      message: "Passive, product-spec tone detected — Citroën voice is more human and direct.",
+    });
+    suggestions.push("Rewrite from the driver's perspective: what they'll feel, not what we built.");
   }
 
-  if (matchedPrefer.length === 0 && matchedAvoid.length === 0) {
+  if (matchedPrefer.length === 0 && highHits.length === 0 && lowHits.length === 0) {
     findings.push({
       type: "info",
-      message: "Copy is neutral — could lean further into Citroën's bold, optimistic voice.",
+      message: "Copy is neutral — could lean further into human lifestyle storytelling.",
     });
-    suggestions.push("Add movement, freedom, or 'your way' motifs to strengthen brand fit.");
+    suggestions.push(
+      "Add a real-life hook (family chaos, weekend trip, DIY, cleaning reset) before the product mention."
+    );
   }
 
   const finalScore = clampScore(score);
@@ -239,26 +305,33 @@ export async function evaluateBrandTone(
 
 function buildPersonaQuotes(input: EvaluationInput, score: number): PersonaQuote[] {
   const caption = input.caption;
+  const captionLower = caption.toLowerCase();
   const isCorporate = BRAND_VOICE.avoidPhrases.some((p) =>
-    caption.toLowerCase().includes(p.toLowerCase())
+    captionLower.includes(p.toLowerCase())
   );
-  const isEngaging = hasQuestionHook(caption) || /weekend|adventure|electric|journey/i.test(caption);
+  const isMotorsportHeavy = BRAND_VOICE.lowEngagementSignals.some((p) =>
+    captionLower.includes(p.toLowerCase())
+  );
+  const isEngaging =
+    hasQuestionHook(caption) ||
+    hasFirstPersonStory(caption) ||
+    /weekend|adventure|family|kids|electric|journey|diy|clean/i.test(caption);
 
-  if (isCorporate) {
+  if (isCorporate || isMotorsportHeavy) {
     return [
       {
         persona: AUDIENCE_PERSONAS[0].name,
-        quote: "This sounds like a press release, not something I'd stop scrolling for.",
+        quote: "This feels like a motorsport highlight reel, not something for everyday drivers like me.",
         sentiment: "negative",
       },
       {
         persona: AUDIENCE_PERSONAS[1].name,
-        quote: "I can't tell what this is actually offering me or my family.",
+        quote: "I can't see my family or weekend plans in this — I'd scroll past.",
         sentiment: "negative",
       },
       {
         persona: AUDIENCE_PERSONAS[2].name,
-        quote: "Too much jargon — I'd scroll past without reading the rest.",
+        quote: "Too much race talk. Show me a real drive or a real life moment instead.",
         sentiment: "negative",
       },
     ];
@@ -268,17 +341,17 @@ function buildPersonaQuotes(input: EvaluationInput, score: number): PersonaQuote
     return [
       {
         persona: AUDIENCE_PERSONAS[0].name,
-        quote: "Love the weekend energy — feels like it's speaking to people who actually get out and do things.",
+        quote: "This feels honest and human — exactly the kind of Citroën content I'd actually watch.",
         sentiment: "positive",
       },
       {
         persona: AUDIENCE_PERSONAS[1].name,
-        quote: "Compact and electric is exactly what we need for school runs and weekend trips.",
+        quote: "The family chaos / day-out vibe is spot on. I'd stop for this.",
         sentiment: "positive",
       },
       {
         persona: AUDIENCE_PERSONAS[2].name,
-        quote: "The question at the end makes me want to comment — I'd engage with this.",
+        quote: "Soft product mention after a real story works for me. I'd engage.",
         sentiment: "positive",
       },
     ];
@@ -292,7 +365,7 @@ function buildPersonaQuotes(input: EvaluationInput, score: number): PersonaQuote
     },
     {
       persona: AUDIENCE_PERSONAS[1].name,
-      quote: "I'd need to see more about practicality and price before this lands.",
+      quote: "I'd need more of a real-life story before this lands with my family.",
       sentiment: "neutral",
     },
     {
@@ -317,35 +390,49 @@ export async function evaluateAudience(
   const captionLower = input.caption.toLowerCase();
   const findings: Finding[] = [];
   const suggestions: string[] = [];
-  let score = 72;
+  let score = 70;
 
-  const isTooNiche = /stakeholder|paradigm|synergy|utilize/i.test(captionLower);
+  const isTooNiche =
+    /stakeholder|paradigm|synergy|utilize|utilise|racecraft|energy management|pole position/i.test(
+      captionLower
+    );
+  const isMotorsport =
+    countSignalHits(captionLower, BRAND_VOICE.lowEngagementSignals).length >= 2;
   const isTooGeneric = captionLower.length < 40;
-  const hasAudienceSignal = /everyday|weekend|family|commute|city|adventure|electric|your way/i.test(captionLower);
+  const lifestyleHits = countSignalHits(
+    captionLower,
+    BRAND_VOICE.highEngagementSignals
+  );
+  const hasAudienceSignal = lifestyleHits.length > 0;
 
-  if (isTooNiche) {
-    score -= 25;
+  if (isTooNiche || isMotorsport) {
+    score -= 28;
     findings.push({
       type: "issue",
-      message: "Copy feels too corporate for Everyday Outsiders — audience may disengage.",
+      message:
+        "Copy skews toward niche motorsport / corporate language. Real Everyday Outsiders engagement favoured lifestyle UGC over Formula E race copy.",
     });
-    suggestions.push("Reframe around real-life moments your audience recognises.");
+    suggestions.push(
+      "Reframe around a moment your audience recognises: school run, weekend trip, DIY haul, or a fresh-car reset."
+    );
   }
 
   if (isTooGeneric) {
     score -= 15;
     findings.push({
       type: "issue",
-      message: "Copy is too generic — doesn't speak to a specific audience need.",
+      message: "Caption is too short and thin — top posts usually tell a small story.",
     });
-    suggestions.push("Anchor the message in a relatable scenario (weekend trip, city commute, first EV).");
+    suggestions.push(
+      "Add a short scene (who, where, why it matters) before the model name."
+    );
   }
 
   if (hasAudienceSignal) {
-    score += 12;
+    score += Math.min(8 + lifestyleHits.length * 2, 20);
     findings.push({
       type: "strength",
-      message: "Messaging connects to Everyday Outsiders lifestyle signals.",
+      message: "Messaging connects to lifestyle signals seen in high-engagement Citroën posts.",
     });
   }
 
@@ -354,6 +441,14 @@ export async function evaluateAudience(
     findings.push({
       type: "strength",
       message: "Question hook invites audience participation and comment.",
+    });
+  }
+
+  if (hasFirstPersonStory(input.caption) && hasAudienceSignal) {
+    score += 6;
+    findings.push({
+      type: "strength",
+      message: "Personal story + lifestyle context — pattern shared by top UGC performers.",
     });
   }
 

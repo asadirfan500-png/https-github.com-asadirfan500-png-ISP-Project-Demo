@@ -107,6 +107,16 @@ export default function ClientBriefPage() {
             <p className="mt-4 text-xs text-muted-foreground">
               Keep emoji use to {BRAND_VOICE.maxEmojiCount} or fewer per post.
             </p>
+            <div className="mt-4 rounded-md border border-border bg-muted/20 p-3 text-xs leading-relaxed text-muted-foreground">
+              <p className="font-medium text-foreground">Trained from real Instagram captions</p>
+              <p className="mt-1">{BRAND_VOICE.trainingInsights.summary}</p>
+              <p className="mt-2">
+                High engagers: {BRAND_VOICE.trainingInsights.highPatterns.slice(0, 3).join("; ")}.
+              </p>
+              <p className="mt-1">
+                Low engagers: {BRAND_VOICE.trainingInsights.lowPatterns.slice(0, 2).join("; ")}.
+              </p>
+            </div>
           </AnimatedContent>
         </TabsContent>
 
