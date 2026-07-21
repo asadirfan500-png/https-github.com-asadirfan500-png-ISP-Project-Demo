@@ -7,8 +7,8 @@ import { CreativeInputForm } from "@/components/stm/creative-input-form";
 import { EvaluationPipeline } from "@/components/stm/evaluation-pipeline";
 import Stepper, { Step } from "@/components/react-bits/Stepper";
 import { STEP_LABELS } from "@/lib/evaluation/simulator";
+import { runRemoteEvaluation } from "@/lib/evaluation/run-remote-evaluation";
 import { Badge } from "@/components/ui/badge";
-import { runFullEvaluation } from "@/lib/evaluation/simulator";
 import type {
   AudienceResult,
   CheckResult,
@@ -75,28 +75,45 @@ export default function ReviewPage() {
     const input = {
       platform: formData.platform as Platform,
       caption: formData.caption,
-      hasImage: !!formData.imageFile,
+      imageFile: formData.imageFile,
     };
 
     try {
-      const result = await runFullEvaluation(input, ({ step, data }) => {
-        const key = stepToResultKey(step);
-        setResults((prev) => ({ ...prev, [key]: data }));
-        setPipelineState((prev) => ({
-          ...prev,
-          [step]: "complete",
-          ...(step === "best_practice" ? { brand_tone: "running" } : {}),
-          ...(step === "brand_tone" ? { audience: "running" } : {}),
-        }));
-      });
+      const { result, source } = await runRemoteEvaluation(
+        input,
+        ({ step, data }) => {
+          const key = stepToResultKey(step);
+          setResults((prev) => ({ ...prev, [key]: data }));
+          setPipelineState((prev) => ({
+            ...prev,
+            [step]: "complete",
+            ...(step === "best_practice" ? { brand_tone: "running" } : {}),
+            ...(step === "brand_tone" ? { audience: "running" } : {}),
+          }));
+        },
+      );
       setFullResult(result);
-    } finally {
-      setIsRunning(false);
       setPipelineState({
         best_practice: "complete",
         brand_tone: "complete",
         audience: "complete",
       });
+      toast.success(
+        source === "claude"
+          ? "Claude reviewed caption" +
+              (formData.imageFile ? " and image" : "") +
+              "."
+          : "Reviewed with rule-based checks (no API key).",
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Review failed";
+      toast.error(message);
+      setHasStarted(false);
+      setPipelineState(INITIAL_PIPELINE);
+      setResults({});
+    } finally {
+      setIsRunning(false);
     }
   }, [formData, validate]);
 
@@ -138,7 +155,7 @@ export default function ReviewPage() {
     <>
       <PageHeader
         title="Creative review"
-        description="Add your post copy and visual. STM will run three checks before you sign off."
+        description="Add copy and an optional image. Claude analyses both against the Citroën brief."
         actions={
           <Badge variant="outline" className="font-normal">
             {statusLabel}
