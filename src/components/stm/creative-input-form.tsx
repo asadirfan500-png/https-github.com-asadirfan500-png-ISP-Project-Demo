@@ -53,7 +53,7 @@ export function CreativeInputForm({
     [formData, onChange]
   );
 
-  const loadSample = (sampleId: "good" | "weak") => {
+  const loadSample = (sampleId: "good") => {
     const sample = SAMPLE_POSTS.find((s) => s.id === sampleId);
     if (!sample) return;
 
@@ -62,7 +62,7 @@ export function CreativeInputForm({
     }
 
     onChange({
-      platform: sample.platform,
+      ...formData,
       caption: sample.caption,
       imageFile: null,
       imagePreviewUrl: null,
@@ -157,6 +157,9 @@ export function CreativeInputForm({
 
         <div className="space-y-2">
           <Label>Visual asset</Label>
+          <p className="mb-2 text-xs text-muted-foreground">
+            Optional. The demo only notices that a file was uploaded — it does not “see” what is in the picture.
+          </p>
           <div
             role="button"
             tabIndex={0}

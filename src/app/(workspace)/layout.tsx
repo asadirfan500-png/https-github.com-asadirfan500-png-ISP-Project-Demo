@@ -8,8 +8,8 @@ const PAGE_META: Record<
   { breadcrumbs: { label: string }[]; subtitle?: string }
 > = {
   "/": {
-    breadcrumbs: [{ label: "Workspace" }, { label: "How it works" }],
-    subtitle: "A quick guide to the Review Desk demo",
+    breadcrumbs: [{ label: "Workspace" }, { label: "Home" }],
+    subtitle: "Welcome back to Review Desk",
   },
   "/dashboard": {
     breadcrumbs: [{ label: "Workspace" }, { label: "Dashboard" }],
@@ -21,10 +21,10 @@ const PAGE_META: Record<
   },
   "/history": {
     breadcrumbs: [{ label: "Workspace" }, { label: "History" }],
-    subtitle: "Past review sessions for Citroën",
+    subtitle: "Past review sessions",
   },
   "/client": {
-    breadcrumbs: [{ label: "Client" }, { label: "Citroën brief" }],
+    breadcrumbs: [{ label: "Client" }, { label: "Client brief" }],
     subtitle: "Brand voice, audience, and platform reference",
   },
 };

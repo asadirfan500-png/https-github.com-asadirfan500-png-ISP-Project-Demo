@@ -33,7 +33,7 @@ export default function DashboardPage() {
     <>
       <PageHeader
         title="Dashboard"
-        description="Your creative review workspace for Citroën."
+        description="Your creative review workspace."
         actions={
           <StarBorder as={Link} href="/review" color="#EB4D4B" speed="5s" className="rounded-lg">
             <span className="flex items-center gap-1.5 px-1 py-0.5 text-sm font-medium">

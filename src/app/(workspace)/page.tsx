@@ -1,5 +1,5 @@
-import { DemoOverview } from "@/components/onboarding/demo-overview";
+import { WelcomeHome } from "@/components/layout/welcome-home";
 
-export default function IntroPage() {
-  return <DemoOverview />;
+export default function HomePage() {
+  return <WelcomeHome />;
 }

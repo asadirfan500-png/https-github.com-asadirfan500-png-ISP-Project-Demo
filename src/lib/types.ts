@@ -61,7 +61,7 @@ export type PipelineStepState = "idle" | "running" | "complete";
 export type PipelineState = Record<EvaluationStep, PipelineStepState>;
 
 export interface SamplePost {
-  id: "good" | "weak";
+  id: "good";
   label: string;
   platform: Platform;
   caption: string;

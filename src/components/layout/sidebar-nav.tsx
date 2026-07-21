@@ -20,22 +20,22 @@ import { cn } from "@/lib/utils";
 import {
   BookOpen,
   ClipboardList,
-  HelpCircle,
   History,
+  Home,
   LayoutDashboard,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
 
 const WORKSPACE_LINKS = [
-  { href: "/", label: "How it works", icon: HelpCircle },
+  { href: "/", label: "Home", icon: Home },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/review", label: "Review", icon: ClipboardList },
   { href: "/history", label: "History", icon: History },
 ];
 
 const CLIENT_LINKS = [
-  { href: "/client", label: "Citroën brief", icon: BookOpen },
+  { href: "/client", label: "Client brief", icon: BookOpen },
 ];
 
 function NavLink({
@@ -150,7 +150,7 @@ export function SidebarNav() {
 
       <aside
         className={cn(
-          "flex h-full shrink-0 flex-col border-r border-sidebar-border bg-sidebar/80 backdrop-blur-md transition-[transform,width] duration-200 ease-in-out",
+          "flex h-full shrink-0 flex-col border-r border-sidebar-border bg-sidebar backdrop-blur-xl transition-[transform,width] duration-200 ease-in-out",
           "fixed inset-y-0 left-0 z-50 w-60 lg:relative lg:z-auto lg:translate-x-0",
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
           showCollapsed ? "lg:w-16" : "lg:w-60",
@@ -162,8 +162,18 @@ export function SidebarNav() {
             showCollapsed && "lg:flex-col lg:items-center lg:gap-2 lg:px-2 lg:py-4",
           )}
         >
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
-            33
+          <div
+            className={cn(
+              "relative shrink-0 overflow-hidden rounded-md bg-black",
+              showCollapsed ? "size-9" : "h-9 w-[4.75rem]",
+            )}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand/33seconds-logo.png"
+              alt="33Seconds"
+              className="size-full object-contain object-center p-0.5"
+            />
           </div>
           {!showCollapsed && (
             <div className="min-w-0 flex-1">

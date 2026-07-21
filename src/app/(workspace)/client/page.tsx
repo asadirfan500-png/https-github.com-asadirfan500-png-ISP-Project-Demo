@@ -20,8 +20,8 @@ export default function ClientBriefPage() {
   return (
     <>
       <PageHeader
-        title="Citroën brief"
-        description="Brand voice, audience, and platform reference for the social team."
+        title="Client brief"
+        description="Brand voice, audience, and platform reference for the active client."
       />
 
       <AnimatedContent distance={24} duration={0.5} className="mb-6">

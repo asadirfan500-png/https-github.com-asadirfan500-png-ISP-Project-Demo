@@ -33,8 +33,8 @@ export default function RootLayout({
       className={`${dmSans.variable} ${geistMono.variable} dark h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full bg-background">
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+      <body className="min-h-full bg-[#05020D] text-foreground">
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} forcedTheme="dark">
           <TooltipProvider>{children}</TooltipProvider>
           <Toaster position="bottom-right" />
         </ThemeProvider>

@@ -88,13 +88,17 @@ export async function evaluateBestPractice(
       type: "issue",
       message: "Carousel or single image strongly recommended for Instagram.",
     });
-    suggestions.push("Add a hero image or carousel to support the caption.");
+    suggestions.push("Add a hero image or carousel that matches the caption story.");
   } else if (input.hasImage && (input.platform === "instagram" || input.platform === "tiktok")) {
-    score += 8;
+    // Demo only checks that a file was uploaded — it does NOT look inside the picture.
     findings.push({
-      type: "strength",
-      message: "Visual asset included — aligns with platform best practice.",
+      type: "info",
+      message:
+        "A visual file was attached, but this demo does not analyse what is in the image or reel. A random screenshot still counts as “uploaded.”",
     });
+    suggestions.push(
+      "Human check needed: make sure the picture/reel actually matches the caption (car, lifestyle, family moment — not unrelated content)."
+    );
   }
 
   if (input.platform === "tiktok" && input.caption.length > 150) {
@@ -110,13 +114,14 @@ export async function evaluateBestPractice(
     score -= 8;
     findings.push({
       type: "info",
-      message: "No hashtags detected — Instagram posts typically include 3–5 relevant tags.",
+      message: "No hashtags detected in the caption text — Instagram posts typically include 3–5 relevant tags.",
     });
     suggestions.push("Add branded and category hashtags such as #EverydayOutsiders.");
   } else if (hasHashtag(input.caption)) {
     findings.push({
-      type: "strength",
-      message: "Hashtags present and discoverable.",
+      type: "info",
+      message:
+        "Hashtags found in the caption text only. This demo does not check if they match the picture.",
     });
   }
 

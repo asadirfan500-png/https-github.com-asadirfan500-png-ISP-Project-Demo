@@ -8,7 +8,9 @@ import {
 export const CITROEN_CLIENT = {
   name: "Citroën",
   audience: "Everyday Outsiders",
-  tagline: "People who live life on their own terms",
+  /** Official Citroën brand signature (UK / international) */
+  tagline: "Inspired by you",
+  logoUrl: "/clients/citroen-logo.png",
 };
 
 /**
@@ -110,20 +112,13 @@ export const AUDIENCE_PERSONAS = [
   },
 ];
 
-/** Sample captions adapted from real high vs low engagement posts */
+/** Sample caption adapted from a high-engagement post */
 export const SAMPLE_POSTS: SamplePost[] = [
   {
     id: "good",
-    label: "Strong post (high-engagement style)",
+    label: "Load sample caption",
     platform: "instagram",
     caption:
       "Becoming a parent changes how you drive — from speed to safety, and from passenger princess to terrified snack butler. Having a comfy and reliable car like this C5 Aircross helps you navigate every bump and detour. You'll still be covered in snacks and nursery rhymes, but life feels better on the road. AD @citroenuk #c5aircross #citroenuk #EverydayOutsiders",
-  },
-  {
-    id: "weak",
-    label: "Needs work (low-engagement style)",
-    platform: "instagram",
-    caption:
-      "Madrid was a stall. The crew is back on set. The trajectory has been recalibrated. We are ready to fly. Copy that, Berlin. Pole position. Energy management. Pure racecraft. #CitroënRacing #SpeedReborn #FormulaE",
   },
 ];
