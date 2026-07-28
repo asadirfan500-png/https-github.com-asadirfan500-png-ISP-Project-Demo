@@ -194,7 +194,7 @@ export default function ReviewPage() {
       />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,420px)_1fr] lg:gap-8">
-        <div className="space-y-4 lg:sticky lg:top-0 lg:self-start">
+        <div className="space-y-4">
           <CreativeInputForm
             formData={formData}
             onChange={setFormData}

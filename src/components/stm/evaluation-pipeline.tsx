@@ -81,7 +81,7 @@ export function EvaluationPipeline({
 
   return (
     <div className="space-y-5">
-      <div className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm lg:sticky lg:top-0 lg:z-10">
+      <div className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-sm font-semibold">Review progress</h3>
           <span className="text-xs text-muted-foreground">
