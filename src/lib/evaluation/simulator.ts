@@ -1,5 +1,6 @@
 import { AUDIENCE_PERSONAS, BRAND_VOICE } from "@/lib/data/citroen";
 import { getPlatformConfig } from "@/lib/data/platforms";
+import { isClearlyUnrelatedToClient } from "@/lib/evaluation/client-relevance";
 import type {
   AudienceResult,
   CheckResult,
@@ -17,6 +18,7 @@ const STEP_DELAYS: Record<EvaluationStep, number> = {
   best_practice: 1400,
   brand_tone: 1600,
   audience: 1800,
+  caption: 1500,
 };
 
 function delay(ms: number): Promise<void> {
@@ -29,7 +31,7 @@ function clampScore(score: number): number {
 
 function statusFromScore(score: number): CheckStatus {
   if (score >= 75) return "pass";
-  if (score >= 50) return "warn";
+  if (score >= 55) return "warn";
   return "fail";
 }
 
@@ -56,10 +58,126 @@ export async function evaluateBestPractice(
 ): Promise<CheckResult> {
   await delay(STEP_DELAYS.best_practice);
 
+  // Caption craft is scored separately — this check is visual / packaging only.
   const config = getPlatformConfig(input.platform);
   const findings: Finding[] = [];
   const suggestions: string[] = [];
-  let score = 82;
+  let score = 78;
+
+  if (config.requiresImage && !input.hasImage) {
+    score -= 28;
+    findings.push({
+      type: "issue",
+      message: "Carousel, still, or reel strongly recommended for Instagram.",
+    });
+    suggestions.push("Add a hero visual that matches the brief.");
+  } else if (input.hasImage && (input.platform === "instagram" || input.platform === "tiktok")) {
+    score += 8;
+    findings.push({
+      type: "strength",
+      message: "Visual/reel file present for a visual-first platform.",
+    });
+    findings.push({
+      type: "info",
+      message:
+        "Offline fallback confirms a file was present; Claude reviews frames when the API key is set.",
+    });
+  } else if (!input.hasImage) {
+    score -= 12;
+    findings.push({
+      type: "issue",
+      message: "No visual attached — packaging is weak for social scroll.",
+    });
+    suggestions.push("Attach a still or reel before production.");
+  }
+
+  if (input.platform === "tiktok" && !input.hasImage) {
+    score -= 15;
+    findings.push({
+      type: "issue",
+      message: "TikTok needs a video/reel asset, not caption packaging alone.",
+    });
+  }
+
+  findings.push({
+    type: "info",
+    message: "Caption length, hooks and hashtags are scored in the Caption check.",
+  });
+
+  const finalScore = clampScore(score);
+  return {
+    score: finalScore,
+    status: statusFromScore(finalScore),
+    findings,
+    suggestions: [...new Set(suggestions)],
+  };
+}
+
+function countSignalHits(captionLower: string, signals: string[]): string[] {
+  return signals.filter((signal) => captionLower.includes(signal.toLowerCase()));
+}
+
+function hasFirstPersonStory(caption: string): boolean {
+  return /\b(i|i'm|i’ve|i've|we|we're|my|our)\b/i.test(caption);
+}
+
+export async function evaluateBrandTone(
+  input: EvaluationInput
+): Promise<CheckResult> {
+  await delay(STEP_DELAYS.brand_tone);
+
+  // Caption ToV is scored in Caption check — this offline path is visual packaging only.
+  const findings: Finding[] = [];
+  const suggestions: string[] = [];
+  let score = 72;
+
+  if (!input.hasImage) {
+    score -= 35;
+    findings.push({
+      type: "issue",
+      message: "No visual to check against Citroën Charte rules.",
+    });
+    suggestions.push("Attach a still or reel so brand visual rules can be reviewed.");
+  } else {
+    score += 10;
+    findings.push({
+      type: "strength",
+      message: "Visual present for brand identity review.",
+    });
+    findings.push({
+      type: "info",
+      message:
+        "Offline mode cannot inspect colours/logo — Claude applies Charte rules when the API key is set.",
+    });
+    suggestions.push(
+      "Confirm white predominance, logo clear space, and no black/blue backgrounds before production.",
+    );
+  }
+
+  findings.push({
+    type: "info",
+    message: "Written tone of voice is scored in the Caption check, not here.",
+  });
+
+  const finalScore = clampScore(score);
+  return {
+    score: finalScore,
+    status: statusFromScore(finalScore),
+    findings,
+    suggestions: [...new Set(suggestions)],
+  };
+}
+
+export async function evaluateCaption(
+  input: EvaluationInput
+): Promise<CheckResult> {
+  await delay(STEP_DELAYS.caption);
+
+  const config = getPlatformConfig(input.platform);
+  const captionLower = input.caption.toLowerCase();
+  const findings: Finding[] = [];
+  const suggestions: string[] = [];
+  let score = 68;
 
   if (input.caption.length > config.maxCaptionLength) {
     score -= 35;
@@ -74,7 +192,9 @@ export async function evaluateBestPractice(
       type: "issue",
       message: `Caption is longer than ideal for ${config.label}.`,
     });
-    suggestions.push(`Aim for around ${config.idealCaptionLength} characters for better engagement.`);
+    suggestions.push(
+      `Aim for around ${config.idealCaptionLength} characters for better engagement.`,
+    );
   } else {
     findings.push({
       type: "strength",
@@ -82,47 +202,21 @@ export async function evaluateBestPractice(
     });
   }
 
-  if (config.requiresImage && !input.hasImage) {
-    score -= 18;
-    findings.push({
-      type: "issue",
-      message: "Carousel or single image strongly recommended for Instagram.",
-    });
-    suggestions.push("Add a hero image or carousel that matches the caption story.");
-  } else if (input.hasImage && (input.platform === "instagram" || input.platform === "tiktok")) {
-    // Demo only checks that a file was uploaded — it does NOT look inside the picture.
-    findings.push({
-      type: "info",
-      message:
-        "A visual file was attached, but this demo does not analyse what is in the image or reel. A random screenshot still counts as “uploaded.”",
-    });
-    suggestions.push(
-      "Human check needed: make sure the picture/reel actually matches the caption (car, lifestyle, family moment — not unrelated content)."
-    );
-  }
-
   if (input.platform === "tiktok" && input.caption.length > 150) {
     score -= 15;
     findings.push({
       type: "issue",
-      message: "Caption is too long for TikTok — keep on-screen text minimal.",
+      message: "Caption is too long for TikTok — keep it as a short hook.",
     });
-    suggestions.push("Move detail to the video voiceover and keep the caption as a short hook.");
   }
 
   if (config.hashtagRecommended && !hasHashtag(input.caption)) {
     score -= 8;
     findings.push({
       type: "info",
-      message: "No hashtags detected in the caption text — Instagram posts typically include 3–5 relevant tags.",
+      message: "No hashtags detected — Instagram posts typically include 3–5 tags.",
     });
-    suggestions.push("Add branded and category hashtags such as #EverydayOutsiders.");
-  } else if (hasHashtag(input.caption)) {
-    findings.push({
-      type: "info",
-      message:
-        "Hashtags found in the caption text only. This demo does not check if they match the picture.",
-    });
+    suggestions.push("Add branded hashtags such as #EverydayOutsiders.");
   }
 
   if (!hasQuestionHook(input.caption) && !hasCta(input.caption)) {
@@ -147,57 +241,26 @@ export async function evaluateBestPractice(
     });
   }
 
-  const finalScore = clampScore(score);
-  return {
-    score: finalScore,
-    status: statusFromScore(finalScore),
-    findings,
-    suggestions: [...new Set(suggestions)],
-  };
-}
-
-function countSignalHits(captionLower: string, signals: string[]): string[] {
-  return signals.filter((signal) => captionLower.includes(signal.toLowerCase()));
-}
-
-function hasFirstPersonStory(caption: string): boolean {
-  return /\b(i|i'm|i’ve|i've|we|we're|my|our)\b/i.test(caption);
-}
-
-function hasAdDisclosure(caption: string): boolean {
-  return /\b(ad|paid partnership|#ad|#pr|\*pr)\b/i.test(caption);
-}
-
-export async function evaluateBrandTone(
-  input: EvaluationInput
-): Promise<CheckResult> {
-  await delay(STEP_DELAYS.brand_tone);
-
-  const captionLower = input.caption.toLowerCase();
-  const findings: Finding[] = [];
-  const suggestions: string[] = [];
-  let score = 68;
-
   const matchedPrefer = BRAND_VOICE.preferPhrases.filter((phrase) =>
-    captionLower.includes(phrase.toLowerCase())
+    captionLower.includes(phrase.toLowerCase()),
   );
   const matchedAvoid = BRAND_VOICE.avoidPhrases.filter((phrase) =>
-    captionLower.includes(phrase.toLowerCase())
+    captionLower.includes(phrase.toLowerCase()),
   );
   const highHits = countSignalHits(
     captionLower,
-    BRAND_VOICE.highEngagementSignals
+    BRAND_VOICE.highEngagementSignals,
   );
   const lowHits = countSignalHits(
     captionLower,
-    BRAND_VOICE.lowEngagementSignals
+    BRAND_VOICE.lowEngagementSignals,
   );
 
   if (matchedPrefer.length > 0) {
     score += Math.min(matchedPrefer.length * 5, 20);
     findings.push({
       type: "strength",
-      message: `On-brand lifestyle language detected: "${matchedPrefer.slice(0, 2).join('", "')}".`,
+      message: `On-brand lifestyle language: "${matchedPrefer.slice(0, 2).join('", "')}".`,
     });
   }
 
@@ -205,19 +268,18 @@ export async function evaluateBrandTone(
     score -= matchedAvoid.length * 14;
     findings.push({
       type: "issue",
-      message: `Low-engagement / off-voice phrasing flagged: "${matchedAvoid.slice(0, 2).join('", "')}".`,
+      message: `Off-voice phrasing: "${matchedAvoid.slice(0, 2).join('", "')}".`,
     });
     suggestions.push(
-      "Rewrite in everyday human language — top Citroën UK posts lead with real life, not racing jargon or corporate claims."
+      "Rewrite in everyday human language — real life, not racing jargon or corporate claims.",
     );
   }
 
-  // Calibrated from 20 real Instagram posts (top vs bottom engagers)
   if (highHits.length >= 2) {
     score += Math.min(highHits.length * 3, 18);
     findings.push({
       type: "strength",
-      message: `Matches high-engagement caption patterns from real Citroën posts (e.g. "${highHits.slice(0, 3).join('", "')}").`,
+      message: `Matches high-engagement caption patterns (e.g. "${highHits.slice(0, 3).join('", "')}").`,
     });
   }
 
@@ -225,32 +287,15 @@ export async function evaluateBrandTone(
     score -= Math.min(lowHits.length * 10, 35);
     findings.push({
       type: "issue",
-      message: `Sounds like low-engagement motorsport / cryptic brand copy (e.g. "${lowHits.slice(0, 2).join('", "')}"). Those posts underperformed vs lifestyle UGC.`,
+      message: `Low-engagement copy patterns (e.g. "${lowHits.slice(0, 2).join('", "')}").`,
     });
-    suggestions.push(
-      "Swap race-recap language for a relatable moment: family journey, day out, DIY trip, or soft EV story."
-    );
   }
 
   if (hasFirstPersonStory(input.caption)) {
     score += 8;
     findings.push({
       type: "strength",
-      message: "First-person storytelling — common in top-performing Citroën UGC captions.",
-    });
-  } else {
-    findings.push({
-      type: "info",
-      message: "No clear first-person voice. High engagers often say “I / we / my family”.",
-    });
-    suggestions.push("Tell it from a real person’s point of view.");
-  }
-
-  if (hasAdDisclosure(input.caption)) {
-    score += 4;
-    findings.push({
-      type: "strength",
-      message: "AD/PR disclosure present — expected on creator partnerships.",
+      message: "First-person storytelling — common in top-performing UGC captions.",
     });
   }
 
@@ -259,44 +304,8 @@ export async function evaluateBrandTone(
     score -= 8;
     findings.push({
       type: "issue",
-      message: `Too many emojis (${emojiCount}) for a clear caption.`,
+      message: `Too many emojis (${emojiCount}).`,
     });
-    suggestions.push(`Aim for about ${BRAND_VOICE.maxEmojiCount} emojis or fewer.`);
-  } else if (emojiCount > 0 && emojiCount <= 3) {
-    findings.push({
-      type: "strength",
-      message: "Emoji use feels natural for Instagram lifestyle content.",
-    });
-  }
-
-  if (/everyday outsider/i.test(input.caption) || /your way/i.test(input.caption)) {
-    score += 8;
-    findings.push({
-      type: "strength",
-      message: "Copy reflects the Everyday Outsiders audience positioning.",
-    });
-  }
-
-  const passiveFeel = /\b(is designed|are designed|was created|is engineered)\b/i.test(
-    input.caption
-  );
-  if (passiveFeel) {
-    score -= 8;
-    findings.push({
-      type: "issue",
-      message: "Passive, product-spec tone detected — Citroën voice is more human and direct.",
-    });
-    suggestions.push("Rewrite from the driver's perspective: what they'll feel, not what we built.");
-  }
-
-  if (matchedPrefer.length === 0 && highHits.length === 0 && lowHits.length === 0) {
-    findings.push({
-      type: "info",
-      message: "Copy is neutral — could lean further into human lifestyle storytelling.",
-    });
-    suggestions.push(
-      "Add a real-life hook (family chaos, weekend trip, DIY, cleaning reset) before the product mention."
-    );
   }
 
   const finalScore = clampScore(score);
@@ -322,68 +331,62 @@ function buildPersonaQuotes(input: EvaluationInput, score: number): PersonaQuote
     hasFirstPersonStory(caption) ||
     /weekend|adventure|family|kids|electric|journey|diy|clean/i.test(caption);
 
+  const names = AUDIENCE_PERSONAS.map((p) => p.name);
+  // Always include Jay (last) as a dissenting voice — matches Claude panel rules.
+  const jay = names[names.length - 1] ?? "Jay, 24";
+
   if (isCorporate || isMotorsportHeavy) {
-    return [
-      {
-        persona: AUDIENCE_PERSONAS[0].name,
-        quote: "This feels like a motorsport highlight reel, not something for everyday drivers like me.",
-        sentiment: "negative",
-      },
-      {
-        persona: AUDIENCE_PERSONAS[1].name,
-        quote: "I can't see my family or weekend plans in this — I'd scroll past.",
-        sentiment: "negative",
-      },
-      {
-        persona: AUDIENCE_PERSONAS[2].name,
-        quote: "Too much race talk. Show me a real drive or a real life moment instead.",
-        sentiment: "negative",
-      },
-    ];
+    return names.map((persona, i) => ({
+      persona,
+      quote:
+        i === names.length - 1
+          ? "Yeah no. Ad. Scrolled."
+          : "This feels like a press release — I'd scroll past.",
+      sentiment: "negative" as const,
+    }));
   }
 
   if (isEngaging && score >= 75) {
-    return [
-      {
-        persona: AUDIENCE_PERSONAS[0].name,
-        quote: "This feels honest and human — exactly the kind of Citroën content I'd actually watch.",
-        sentiment: "positive",
-      },
-      {
-        persona: AUDIENCE_PERSONAS[1].name,
-        quote: "The family chaos / day-out vibe is spot on. I'd stop for this.",
-        sentiment: "positive",
-      },
-      {
-        persona: AUDIENCE_PERSONAS[2].name,
-        quote: "Soft product mention after a real story works for me. I'd engage.",
-        sentiment: "positive",
-      },
-    ];
+    return names.map((persona, i) => {
+      if (i === names.length - 1) {
+        return {
+          persona: jay,
+          quote: "Fine, the joke landed once. Still wouldn't save it.",
+          sentiment: "negative" as const,
+        };
+      }
+      if (i === 3) {
+        return {
+          persona,
+          quote: "The family chaos / day-out vibe is spot on. I'd stop for this.",
+          sentiment: "positive" as const,
+        };
+      }
+      return {
+        persona,
+        quote:
+          "This feels honest and human — the kind of Citroën content I'd actually watch.",
+        sentiment: "positive" as const,
+      };
+    });
   }
 
-  return [
-    {
-      persona: AUDIENCE_PERSONAS[0].name,
-      quote: "It's fine but doesn't feel especially aimed at me — a bit generic.",
-      sentiment: "neutral",
-    },
-    {
-      persona: AUDIENCE_PERSONAS[1].name,
-      quote: "I'd need more of a real-life story before this lands with my family.",
-      sentiment: "neutral",
-    },
-    {
-      persona: AUDIENCE_PERSONAS[2].name,
-      quote: "Decent message but nothing that makes me stop and think 'that's for me'.",
-      sentiment: "neutral",
-    },
-  ];
+  return names.map((persona, i) => ({
+    persona,
+    quote:
+      i === names.length - 1
+        ? "Generic. Next."
+        : "It's fine but doesn't feel especially aimed at me.",
+    sentiment: (i === names.length - 1 ? "negative" : "neutral") as
+      | "positive"
+      | "neutral"
+      | "negative",
+  }));
 }
 
 function receptivenessFromScore(score: number): Receptiveness {
   if (score >= 75) return "high";
-  if (score >= 50) return "medium";
+  if (score >= 55) return "medium";
   return "low";
 }
 
@@ -473,18 +476,25 @@ export async function evaluateAudience(
 function aggregateResults(
   bestPractice: CheckResult,
   brandTone: CheckResult,
-  audience: AudienceResult
+  audience: AudienceResult,
+  caption: CheckResult,
 ): FullEvaluationResult {
   const aggregateScore = clampScore(
-    (bestPractice.score + brandTone.score + audience.score) / 3
+    (bestPractice.score + brandTone.score + audience.score + caption.score) / 4,
   );
 
-  const statuses = [bestPractice.status, brandTone.status, audience.status];
+  const statuses = [
+    bestPractice.status,
+    brandTone.status,
+    audience.status,
+    caption.status,
+  ];
   let overallStatus: CheckStatus = "pass";
   if (statuses.includes("fail")) overallStatus = "fail";
   else if (statuses.includes("warn")) overallStatus = "warn";
 
   const allSuggestions = [
+    ...caption.suggestions,
     ...bestPractice.suggestions,
     ...brandTone.suggestions,
     ...audience.suggestions,
@@ -496,7 +506,7 @@ function aggregateResults(
     topActions.push(
       "Creative is client-ready — proceed to human sign-off.",
       "Consider A/B testing the opening hook.",
-      "Monitor engagement against Everyday Outsiders benchmarks post-publish."
+      "Monitor engagement against Everyday Outsiders benchmarks post-publish.",
     );
   }
 
@@ -504,16 +514,61 @@ function aggregateResults(
     bestPractice,
     brandTone,
     audience,
+    caption,
     aggregateScore,
     overallStatus,
     topActions,
   };
 }
 
+function unrelatedFullResult(message: string): FullEvaluationResult {
+  const check: CheckResult = {
+    score: 0,
+    status: "fail",
+    findings: [{ type: "issue", message }],
+    suggestions: [
+      "Submit creative that is clearly for Citroën (brand, model, or client brief).",
+    ],
+  };
+  return {
+    bestPractice: check,
+    brandTone: check,
+    audience: {
+      ...check,
+      receptiveness: "low",
+      personaQuotes: [
+        {
+          persona: "Jay, 24, Birmingham",
+          quote: "This isn't even for Citroën.",
+          sentiment: "negative",
+        },
+      ],
+    },
+    caption: check,
+    aggregateScore: 0,
+    overallStatus: "fail",
+    topActions: [
+      "This creative is not related to the Citroën client — score is 0.",
+      "Resubmit with Citroën product, brand, or brief-aligned content.",
+    ],
+  };
+}
+
 export async function runFullEvaluation(
   input: EvaluationInput,
-  onStepComplete?: (result: StepEvaluationResult) => void
+  onStepComplete?: (result: StepEvaluationResult) => void,
 ): Promise<FullEvaluationResult> {
+  if (isClearlyUnrelatedToClient(input.caption, { hasVisual: input.hasImage })) {
+    const zeroed = unrelatedFullResult(
+      "Nothing here relates to the Citroën client — overall score is 0.",
+    );
+    onStepComplete?.({ step: "best_practice", data: zeroed.bestPractice });
+    onStepComplete?.({ step: "brand_tone", data: zeroed.brandTone });
+    onStepComplete?.({ step: "audience", data: zeroed.audience });
+    onStepComplete?.({ step: "caption", data: zeroed.caption });
+    return zeroed;
+  }
+
   const bestPractice = await evaluateBestPractice(input);
   onStepComplete?.({ step: "best_practice", data: bestPractice });
 
@@ -523,17 +578,22 @@ export async function runFullEvaluation(
   const audience = await evaluateAudience(input);
   onStepComplete?.({ step: "audience", data: audience });
 
-  return aggregateResults(bestPractice, brandTone, audience);
+  const caption = await evaluateCaption(input);
+  onStepComplete?.({ step: "caption", data: caption });
+
+  return aggregateResults(bestPractice, brandTone, audience, caption);
 }
 
 export const STEP_LABELS: Record<EvaluationStep, string> = {
   best_practice: "Platform Best Practice",
-  brand_tone: "Brand Tone of Voice",
+  brand_tone: "Brand Visual Identity",
   audience: "Audience Focus Group",
+  caption: "Caption Performance",
 };
 
 export const STEP_DESCRIPTIONS: Record<EvaluationStep, string> = {
-  best_practice: "Checking format, length, and platform trends",
-  brand_tone: "Validating against Citroën voice guidelines",
-  audience: "Simulating Everyday Outsiders focus group feedback",
+  best_practice: "Visual format and platform packaging (not caption craft)",
+  brand_tone: "Charte visual rules — logo, colour, composition",
+  audience: "Everyday Outsiders reaction to the visual",
+  caption: "Written copy: hook, ToV, length, engage reason",
 };

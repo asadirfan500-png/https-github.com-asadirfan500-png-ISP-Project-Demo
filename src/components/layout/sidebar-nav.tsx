@@ -267,11 +267,16 @@ export function SidebarNav() {
             <Tooltip>
               <TooltipTrigger
                 render={
-                  <div className="mx-auto flex size-9 cursor-default items-center justify-center rounded-md border border-primary/20 bg-card/60 text-sm font-semibold shadow-[0_0_24px_-8px_oklch(0.62_0.22_25_/_0.45)] backdrop-blur-sm" />
+                  <div className="mx-auto flex size-9 cursor-default items-center justify-center overflow-hidden rounded-md border border-primary/20 bg-white shadow-[0_0_24px_-8px_oklch(0.62_0.22_25_/_0.45)]">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={CITROEN_CLIENT.logoUrl}
+                      alt={CITROEN_CLIENT.name}
+                      className="size-full object-contain p-1"
+                    />
+                  </div>
                 }
-              >
-                C
-              </TooltipTrigger>
+              />
               <TooltipContent side="right" className="max-w-48">
                 <p className="font-semibold">{CITROEN_CLIENT.name}</p>
                 <p className="text-background/70">{CITROEN_CLIENT.audience}</p>
@@ -282,12 +287,24 @@ export function SidebarNav() {
               <p className="text-xs font-medium text-muted-foreground">
                 Active client
               </p>
-              <p className="mt-0.5 text-sm font-semibold">
-                {CITROEN_CLIENT.name}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {CITROEN_CLIENT.audience}
-              </p>
+              <div className="mt-2 flex items-center gap-2.5">
+                <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-white">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={CITROEN_CLIENT.logoUrl}
+                    alt=""
+                    className="size-full object-contain p-1"
+                  />
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">
+                    {CITROEN_CLIENT.name}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {CITROEN_CLIENT.audience}
+                  </p>
+                </div>
+              </div>
             </div>
           )}
         </div>

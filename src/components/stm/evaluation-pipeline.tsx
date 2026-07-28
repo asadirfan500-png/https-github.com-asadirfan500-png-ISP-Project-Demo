@@ -23,6 +23,7 @@ interface EvaluationPipelineProps {
     bestPractice: CheckResult;
     brandTone: CheckResult;
     audience: AudienceResult;
+    caption: CheckResult;
   }>;
   fullResult: FullEvaluationResult | null;
   isRunning: boolean;
@@ -47,6 +48,13 @@ function StepSkeleton() {
   );
 }
 
+const STEP_ORDER = [
+  "best_practice",
+  "brand_tone",
+  "audience",
+  "caption",
+] as const;
+
 export function EvaluationPipeline({
   pipelineState,
   results,
@@ -67,8 +75,8 @@ export function EvaluationPipeline({
     );
   }
 
-  const completedCount = ["best_practice", "brand_tone", "audience"].filter(
-    (step) => pipelineState[step as keyof PipelineState] === "complete"
+  const completedCount = STEP_ORDER.filter(
+    (step) => pipelineState[step] === "complete",
   ).length;
 
   return (
@@ -76,7 +84,9 @@ export function EvaluationPipeline({
       <div className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm lg:sticky lg:top-0 lg:z-10">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-sm font-semibold">Review progress</h3>
-          <span className="text-xs text-muted-foreground">{completedCount}/3 complete</span>
+          <span className="text-xs text-muted-foreground">
+            {completedCount}/4 complete
+          </span>
         </div>
         <PipelineStepIndicators pipelineState={pipelineState} />
       </div>
@@ -106,6 +116,15 @@ export function EvaluationPipeline({
             title={STEP_LABELS.audience}
             description={STEP_DESCRIPTIONS.audience}
             result={results.audience}
+          />
+        )}
+
+        {pipelineState.caption === "running" && <StepSkeleton />}
+        {results.caption && (
+          <CheckResultCard
+            title={STEP_LABELS.caption}
+            description={STEP_DESCRIPTIONS.caption}
+            result={results.caption}
           />
         )}
       </div>

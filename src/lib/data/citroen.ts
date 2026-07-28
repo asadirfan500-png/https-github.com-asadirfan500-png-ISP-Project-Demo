@@ -1,4 +1,6 @@
 import type { SamplePost } from "@/lib/types";
+import { citroen } from "@/lib/data/brand";
+import { EVERYDAY_OUTSIDERS } from "@/lib/data/audience";
 import {
   HIGH_ENGAGEMENT_SIGNALS,
   LOW_ENGAGEMENT_SIGNALS,
@@ -6,111 +8,46 @@ import {
 } from "@/lib/data/citroen-posts-training";
 
 export const CITROEN_CLIENT = {
-  name: "Citroën",
+  name: citroen.brand,
   audience: "Everyday Outsiders",
-  /** Official Citroën brand signature (UK / international) */
-  tagline: "Inspired by you",
+  /** [CHARTE] brand signature */
+  tagline: citroen.signature,
   logoUrl: "/clients/citroen-logo.png",
 };
 
 /**
- * Brand voice calibrated from top vs lowest performing @citroenuk / UGC posts
- * (see citroen-posts-training.ts). Prefer phrases mirror high-engagement
- * lifestyle UGC; avoid phrases mirror low-engagement motorsport/generic copy.
+ * Compatibility shape for the rules simulator + client brief UI.
+ * Prefer / avoid language now comes from the ToV-backed brand profile.
  */
 export const BRAND_VOICE = {
-  traits: [
-    "bold",
-    "human",
-    "optimistic",
-    "conversational",
-    "inclusive",
-    "humorous",
-    "relatable",
-  ],
-  preferPhrases: [
-    ...new Set([
-      "weekend",
-      "adventure",
-      "family",
-      "kids",
-      "parent",
-      "road trip",
-      "comfy",
-      "comfortable",
-      "reliable",
-      "electric",
-      "fresh car",
-      "day out",
-      "camper",
-      "holidays",
-      "aircross",
-      "berlingo",
-      "everyday",
-      "your way",
-      "freedom",
-      "discover",
-      "journey",
-      "outsider",
-      "compact",
-      "renovation",
-      "diy",
-      "surfing",
-      "ocean",
-      "charity",
-      "partner",
-      "drive",
-    ]),
-  ],
+  traits: citroen.voiceTraits.map((t) => t.trait.toLowerCase()),
+  preferPhrases: citroen.useLanguage,
   avoidPhrases: [
-    ...new Set([
-      "synergy",
-      "leverage",
-      "premium exclusive",
-      "best-in-class",
-      "paradigm",
-      "utilize",
-      "utilise",
-      "stakeholders",
-      "disruptive innovation",
-      "luxury lifestyle",
-      "pole position",
-      "racecraft",
-      "energy management",
-      "speed reborn",
-      "formula e",
-      "trajectory has been recalibrated",
-      "recalibrated",
-      "dark waters",
-      "swipe right",
-      "whatever your job",
-      "abb fia",
-      "world championship",
-    ]),
+    ...citroen.avoidLanguage,
+    // Keep a few motorsport jargon signals for the offline simulator
+    "pole position",
+    "racecraft",
+    "energy management",
+    "formula e",
   ],
   highEngagementSignals: HIGH_ENGAGEMENT_SIGNALS,
   lowEngagementSignals: LOW_ENGAGEMENT_SIGNALS,
   trainingInsights: TRAINING_INSIGHTS,
   maxEmojiCount: 5,
+  personality: citroen.personality,
+  dna: citroen.dna,
+  verbalRules: citroen.verbalRules,
+  visualRules: citroen.visualRules,
+  knownTensions: citroen.knownTensions,
 };
 
-export const AUDIENCE_PERSONAS = [
-  {
-    id: "urban_creative",
-    name: "Maya — Urban Creative",
-    description: "28, city-based designer who values style and sustainability",
-  },
-  {
-    id: "family_adventurer",
-    name: "James — Suburban Adventurer",
-    description: "35, family of four, weekend explorers on a practical budget",
-  },
-  {
-    id: "ev_curious",
-    name: "Priya — First-time EV Curious",
-    description: "32, commuting professional exploring her first electric car",
-  },
-];
+/** Six Everyday Outsiders personas — same panel Claude uses. */
+export const AUDIENCE_PERSONAS = EVERYDAY_OUTSIDERS.map((p) => ({
+  id: p.id,
+  name: `${p.name}, ${p.age} — ${p.segment}`,
+  description: `${p.region}. ${p.household}. Responds to: ${p.respondsTo[0]}`,
+  persona: p,
+}));
 
 /** Sample caption adapted from a high-engagement post */
 export const SAMPLE_POSTS: SamplePost[] = [

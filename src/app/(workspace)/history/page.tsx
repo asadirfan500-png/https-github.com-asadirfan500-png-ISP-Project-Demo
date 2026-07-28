@@ -20,19 +20,20 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import AnimatedContent from "@/components/react-bits/AnimatedContent";
+import { useReviews } from "@/hooks/use-reviews";
 import {
   formatReviewDateShort,
   getPlatformLabel,
-  MOCK_REVIEWS,
-} from "@/lib/data/mock-reviews";
+} from "@/lib/reviews-store";
 import type { CheckStatus, Platform, ReviewHistoryItem } from "@/lib/types";
 import { ChevronDown, ChevronRight, History } from "lucide-react";
 
 function ReviewDetail({ review }: { review: ReviewHistoryItem }) {
   const checks = [
     { label: "Best practice", ...review.checks.bestPractice },
-    { label: "Brand tone", ...review.checks.brandTone },
+    { label: "Brand visual", ...review.checks.brandTone },
     { label: "Audience", ...review.checks.audience },
+    { label: "Caption", ...review.checks.caption },
   ];
 
   return (
@@ -42,7 +43,7 @@ function ReviewDetail({ review }: { review: ReviewHistoryItem }) {
           Full caption
         </p>
         <p className="mb-4 text-sm">{review.caption}</p>
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {checks.map((check) => (
             <div
               key={check.label}
@@ -53,7 +54,9 @@ function ReviewDetail({ review }: { review: ReviewHistoryItem }) {
                 <StatusBadge status={check.status} />
               </div>
               <p className="text-lg font-semibold">{check.score}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{check.summary}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {check.summary}
+              </p>
             </div>
           ))}
         </div>
@@ -85,7 +88,9 @@ function ReviewMobileCard({
         )}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-medium">{getPlatformLabel(review.platform)}</p>
+            <p className="text-sm font-medium">
+              {getPlatformLabel(review.platform)}
+            </p>
             <StatusBadge status={review.status} />
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -125,17 +130,19 @@ function ReviewMobileList({
 }
 
 export default function HistoryPage() {
+  const { reviews } = useReviews();
   const [platformFilter, setPlatformFilter] = useState<Platform | "all">("all");
   const [statusFilter, setStatusFilter] = useState<CheckStatus | "all">("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
-    return MOCK_REVIEWS.filter((review) => {
-      if (platformFilter !== "all" && review.platform !== platformFilter) return false;
+    return reviews.filter((review) => {
+      if (platformFilter !== "all" && review.platform !== platformFilter)
+        return false;
       if (statusFilter !== "all" && review.status !== statusFilter) return false;
       return true;
     });
-  }, [platformFilter, statusFilter]);
+  }, [platformFilter, statusFilter, reviews]);
 
   const toggleExpanded = (id: string) => {
     setExpandedId((current) => (current === id ? null : id));
@@ -145,7 +152,7 @@ export default function HistoryPage() {
     <>
       <PageHeader
         title="Review history"
-        description="Past creative checks for Citroën. Click a row to see details."
+        description="Past creative checks. Click a row to see details."
       />
 
       <AnimatedContent distance={20} duration={0.5} className="mb-4">
@@ -187,8 +194,12 @@ export default function HistoryPage() {
       {filtered.length === 0 ? (
         <EmptyState
           icon={History}
-          title="No reviews found"
-          description="Try adjusting your filters to see more results."
+          title={reviews.length === 0 ? "No reviews yet" : "No reviews found"}
+          description={
+            reviews.length === 0
+              ? "Complete a review and it will appear here."
+              : "Try adjusting your filters to see more results."
+          }
         />
       ) : (
         <>
@@ -206,10 +217,14 @@ export default function HistoryPage() {
                     <TableHead className="w-8" />
                     <TableHead>Date</TableHead>
                     <TableHead>Platform</TableHead>
-                    <TableHead className="hidden md:table-cell">Caption</TableHead>
+                    <TableHead className="hidden md:table-cell">
+                      Caption
+                    </TableHead>
                     <TableHead>Score</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="hidden sm:table-cell">Reviewer</TableHead>
+                    <TableHead className="hidden sm:table-cell">
+                      Reviewer
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -230,11 +245,15 @@ export default function HistoryPage() {
                         <TableCell className="whitespace-nowrap text-muted-foreground">
                           {formatReviewDateShort(review.date)}
                         </TableCell>
-                        <TableCell>{getPlatformLabel(review.platform)}</TableCell>
+                        <TableCell>
+                          {getPlatformLabel(review.platform)}
+                        </TableCell>
                         <TableCell className="hidden max-w-xs truncate md:table-cell">
                           {review.captionPreview}
                         </TableCell>
-                        <TableCell className="font-medium">{review.score}</TableCell>
+                        <TableCell className="font-medium">
+                          {review.score}
+                        </TableCell>
                         <TableCell>
                           <StatusBadge status={review.status} />
                         </TableCell>

@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { evaluateWithClaude } from "@/lib/evaluation/claude-evaluator";
 import { runFullEvaluation } from "@/lib/evaluation/simulator";
-import type { Platform } from "@/lib/types";
+import type { MediaKind, Platform } from "@/lib/types";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+/** Three parallel Claude calls — allow headroom for demo (esp. reel frames). */
+export const maxDuration = 120;
 
 const PLATFORMS: Platform[] = [
   "instagram",
@@ -14,13 +15,74 @@ const PLATFORMS: Platform[] = [
   "x",
 ];
 
+type FrameBody = {
+  base64?: string;
+  mediaType?: string;
+};
+
 type Body = {
   platform?: string;
   caption?: string;
+  visualKind?: string;
+  frames?: FrameBody[];
   imageBase64?: string;
   imageMediaType?: string;
   useClaude?: boolean;
 };
+
+function parseFrames(body: Body): {
+  frames: {
+    base64: string;
+    mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+  }[];
+  visualKind: MediaKind | "none";
+} {
+  const allowed = new Set([
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+  ]);
+
+  const fromArray = (body.frames ?? [])
+    .filter((f) => f.base64 && f.mediaType && allowed.has(f.mediaType))
+    .map((f) => ({
+      base64: f.base64!,
+      mediaType: f.mediaType as
+        | "image/jpeg"
+        | "image/png"
+        | "image/gif"
+        | "image/webp",
+    }));
+
+  if (fromArray.length > 0) {
+    const visualKind: MediaKind | "none" =
+      body.visualKind === "video" ? "video" : "image";
+    return { frames: fromArray, visualKind };
+  }
+
+  if (
+    body.imageBase64 &&
+    body.imageMediaType &&
+    allowed.has(body.imageMediaType)
+  ) {
+    return {
+      frames: [
+        {
+          base64: body.imageBase64,
+          mediaType: body.imageMediaType as
+            | "image/jpeg"
+            | "image/png"
+            | "image/gif"
+            | "image/webp",
+        },
+      ],
+      visualKind: body.visualKind === "video" ? "video" : "image",
+    };
+  }
+
+  return { frames: [], visualKind: "none" };
+}
 
 export async function POST(request: Request) {
   try {
@@ -41,23 +103,16 @@ export async function POST(request: Request) {
       );
     }
 
+    const { frames, visualKind } = parseFrames(body);
     const hasKey = Boolean(process.env.ANTHROPIC_API_KEY?.trim());
     const wantClaude = body.useClaude !== false;
 
     if (hasKey && wantClaude) {
-      const mediaType =
-        body.imageMediaType === "image/jpeg" ||
-        body.imageMediaType === "image/png" ||
-        body.imageMediaType === "image/gif" ||
-        body.imageMediaType === "image/webp"
-          ? body.imageMediaType
-          : undefined;
-
       const result = await evaluateWithClaude({
         platform,
         caption,
-        imageBase64: body.imageBase64,
-        imageMediaType: mediaType,
+        visualKind,
+        frames,
       });
 
       return NextResponse.json({
@@ -69,7 +124,7 @@ export async function POST(request: Request) {
     const result = await runFullEvaluation({
       platform,
       caption,
-      hasImage: Boolean(body.imageBase64),
+      hasImage: frames.length > 0,
     });
 
     return NextResponse.json({

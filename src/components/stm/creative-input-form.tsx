@@ -3,6 +3,10 @@
 import { useCallback, useRef } from "react";
 import { SAMPLE_POSTS } from "@/lib/data/citroen";
 import { PLATFORMS } from "@/lib/data/platforms";
+import {
+  isImageFile,
+  isVideoFile,
+} from "@/lib/media/extract-video-frames";
 import type { CreativeFormData, Platform } from "@/lib/types";
 import ClickSpark from "@/components/react-bits/ClickSpark";
 import StarBorder from "@/components/react-bits/StarBorder";
@@ -10,8 +14,11 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
-import { ImagePlus, Loader2, RotateCcw, Send, X } from "lucide-react";
+import { Film, ImagePlus, Loader2, RotateCcw, Send, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+
+const MAX_VIDEO_BYTES = 80 * 1024 * 1024; // 80MB — frames are sampled locally
 
 interface CreativeInputFormProps {
   formData: CreativeFormData;
@@ -33,48 +40,78 @@ export function CreativeInputForm({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const reducedMotion = useReducedMotion();
 
-  const handleImageChange = useCallback(
+  const clearMedia = useCallback(() => {
+    if (formData.mediaPreviewUrl) {
+      URL.revokeObjectURL(formData.mediaPreviewUrl);
+    }
+    onChange({
+      ...formData,
+      mediaFile: null,
+      mediaPreviewUrl: null,
+      mediaKind: null,
+    });
+  }, [formData, onChange]);
+
+  const handleMediaChange = useCallback(
     (file: File | null) => {
-      if (formData.imagePreviewUrl) {
-        URL.revokeObjectURL(formData.imagePreviewUrl);
+      if (formData.mediaPreviewUrl) {
+        URL.revokeObjectURL(formData.mediaPreviewUrl);
       }
 
       if (!file) {
-        onChange({ ...formData, imageFile: null, imagePreviewUrl: null });
+        onChange({
+          ...formData,
+          mediaFile: null,
+          mediaPreviewUrl: null,
+          mediaKind: null,
+        });
+        return;
+      }
+
+      const video = isVideoFile(file);
+      const image = isImageFile(file);
+
+      if (!video && !image) {
+        toast.error("Use an image (JPG/PNG) or a reel video (MP4/WebM/MOV).");
+        return;
+      }
+
+      if (video && file.size > MAX_VIDEO_BYTES) {
+        toast.error("Keep reels under 80MB for the demo.");
         return;
       }
 
       onChange({
         ...formData,
-        imageFile: file,
-        imagePreviewUrl: URL.createObjectURL(file),
+        mediaFile: file,
+        mediaPreviewUrl: URL.createObjectURL(file),
+        mediaKind: video ? "video" : "image",
       });
     },
-    [formData, onChange]
+    [formData, onChange],
   );
 
   const loadSample = (sampleId: "good") => {
     const sample = SAMPLE_POSTS.find((s) => s.id === sampleId);
     if (!sample) return;
 
-    if (formData.imagePreviewUrl) {
-      URL.revokeObjectURL(formData.imagePreviewUrl);
+    if (formData.mediaPreviewUrl) {
+      URL.revokeObjectURL(formData.mediaPreviewUrl);
     }
 
     onChange({
       ...formData,
       caption: sample.caption,
-      imageFile: null,
-      imagePreviewUrl: null,
+      mediaFile: null,
+      mediaPreviewUrl: null,
+      mediaKind: null,
     });
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
-    if (file?.type.startsWith("image/")) {
-      handleImageChange(file);
-    }
+    if (file) handleMediaChange(file);
   };
 
   return (
@@ -82,7 +119,7 @@ export function CreativeInputForm({
       <div className="border-b border-border px-4 py-3">
         <h2 className="text-sm font-semibold">Creative input</h2>
         <p className="text-xs text-muted-foreground">
-          Platform, copy, and optional visual
+          Platform, copy, and optional image or reel
         </p>
       </div>
 
@@ -123,7 +160,7 @@ export function CreativeInputForm({
                   formData.platform === platform.id
                     ? "border-primary bg-primary/5 text-primary"
                     : "border-border bg-background text-muted-foreground hover:border-primary/30 hover:text-foreground",
-                  isRunning && "pointer-events-none opacity-50"
+                  isRunning && "pointer-events-none opacity-50",
                 )}
               >
                 {platform.label}
@@ -158,7 +195,8 @@ export function CreativeInputForm({
         <div className="space-y-2">
           <Label>Visual asset</Label>
           <p className="mb-2 text-xs text-muted-foreground">
-            Optional. The demo only notices that a file was uploaded — it does not “see” what is in the picture.
+            Optional still or reel. For video, the demo samples a few frames and
+            reviews those with the caption.
           </p>
           <div
             role="button"
@@ -173,17 +211,28 @@ export function CreativeInputForm({
             onClick={() => fileInputRef.current?.click()}
             className={cn(
               "flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-border bg-muted/20 p-4 transition-colors hover:border-primary/30 hover:bg-muted/40",
-              isRunning && "pointer-events-none opacity-50"
+              isRunning && "pointer-events-none opacity-50",
             )}
           >
-            {formData.imagePreviewUrl ? (
+            {formData.mediaPreviewUrl ? (
               <div className="relative w-full">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={formData.imagePreviewUrl}
-                  alt="Upload preview"
-                  className="mx-auto max-h-36 rounded object-contain"
-                />
+                {formData.mediaKind === "video" ? (
+                  <video
+                    src={formData.mediaPreviewUrl}
+                    className="mx-auto max-h-44 rounded object-contain"
+                    controls
+                    muted
+                    playsInline
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={formData.mediaPreviewUrl}
+                    alt="Upload preview"
+                    className="mx-auto max-h-36 rounded object-contain"
+                  />
+                )}
                 <Button
                   type="button"
                   variant="secondary"
@@ -191,26 +240,39 @@ export function CreativeInputForm({
                   className="absolute top-0 right-0"
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleImageChange(null);
+                    clearMedia();
                     if (fileInputRef.current) fileInputRef.current.value = "";
                   }}
                 >
                   <X className="size-4" />
                 </Button>
+                {formData.mediaKind === "video" && (
+                  <p className="mt-2 text-center text-xs text-muted-foreground">
+                    Reel ready — frames will be sampled on submit
+                  </p>
+                )}
               </div>
             ) : (
               <>
-                <ImagePlus className="mb-1.5 size-6 text-muted-foreground" />
-                <p className="text-xs font-medium">Drop image or click to upload</p>
+                <div className="mb-1.5 flex items-center gap-2 text-muted-foreground">
+                  <ImagePlus className="size-6" />
+                  <Film className="size-6" />
+                </div>
+                <p className="text-xs font-medium">
+                  Drop image or reel, or click to upload
+                </p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  JPG, PNG, WebP · MP4, WebM, MOV
+                </p>
               </>
             )}
           </div>
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/*,video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
             className="hidden"
-            onChange={(e) => handleImageChange(e.target.files?.[0] ?? null)}
+            onChange={(e) => handleMediaChange(e.target.files?.[0] ?? null)}
           />
         </div>
 
@@ -233,33 +295,37 @@ export function CreativeInputForm({
             <div className="hidden flex-1 md:block">
               <ClickSpark sparkColor="#EB4D4B">
                 <StarBorder
-                as="button"
-                type="button"
-                color="#EB4D4B"
-                speed="5s"
-                className="w-full rounded-lg"
-                onClick={onSubmit}
-                disabled={isRunning}
-              >
-                <span className="flex items-center justify-center gap-1.5 px-2 py-1 text-sm font-medium">
-                  {isRunning ? (
-                    <>
-                      <Loader2 className="size-4 animate-spin" />
-                      Reviewing...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="size-4" />
-                      Submit for review
-                    </>
-                  )}
-                </span>
+                  as="button"
+                  type="button"
+                  color="#EB4D4B"
+                  speed="5s"
+                  className="w-full rounded-lg"
+                  onClick={onSubmit}
+                  disabled={isRunning}
+                >
+                  <span className="flex items-center justify-center gap-1.5 px-2 py-1 text-sm font-medium">
+                    {isRunning ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" />
+                        Reviewing...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="size-4" />
+                        Submit for review
+                      </>
+                    )}
+                  </span>
                 </StarBorder>
               </ClickSpark>
             </div>
           )}
           {!reducedMotion && (
-            <Button onClick={onSubmit} disabled={isRunning} className="flex-1 md:hidden">
+            <Button
+              onClick={onSubmit}
+              disabled={isRunning}
+              className="flex-1 md:hidden"
+            >
               {isRunning ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />

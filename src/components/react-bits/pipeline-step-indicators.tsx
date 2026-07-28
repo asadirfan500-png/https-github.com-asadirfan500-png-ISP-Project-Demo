@@ -6,7 +6,12 @@ import { STEP_DESCRIPTIONS, STEP_LABELS } from "@/lib/evaluation/simulator";
 import { cn } from "@/lib/utils";
 import { Check, Loader2 } from "lucide-react";
 
-const STEPS: EvaluationStep[] = ["best_practice", "brand_tone", "audience"];
+const STEPS: EvaluationStep[] = [
+  "best_practice",
+  "brand_tone",
+  "audience",
+  "caption",
+];
 
 function getStepStatus(
   step: EvaluationStep,

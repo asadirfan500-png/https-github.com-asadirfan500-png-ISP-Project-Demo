@@ -38,11 +38,12 @@ export function FinalReport({ result, onApprove, onRevise }: FinalReportProps) {
               </p>
               <p className="text-xs text-muted-foreground">Overall score</p>
             </div>
-            <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-4">
               {[
                 { label: "Best practice", score: result.bestPractice.score },
-                { label: "Brand tone", score: result.brandTone.score },
+                { label: "Brand visual", score: result.brandTone.score },
                 { label: "Audience", score: result.audience.score },
+                { label: "Caption", score: result.caption.score },
               ].map(({ label, score }) => (
                 <div
                   key={label}

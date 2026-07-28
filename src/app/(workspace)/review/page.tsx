@@ -8,6 +8,7 @@ import { EvaluationPipeline } from "@/components/stm/evaluation-pipeline";
 import Stepper, { Step } from "@/components/react-bits/Stepper";
 import { STEP_LABELS } from "@/lib/evaluation/simulator";
 import { runRemoteEvaluation } from "@/lib/evaluation/run-remote-evaluation";
+import { addReviewFromEvaluation, markReviewSignedOff } from "@/lib/reviews-store";
 import { Badge } from "@/components/ui/badge";
 import type {
   AudienceResult,
@@ -22,20 +23,23 @@ import type {
 const INITIAL_FORM: CreativeFormData = {
   platform: "",
   caption: "",
-  imageFile: null,
-  imagePreviewUrl: null,
+  mediaFile: null,
+  mediaPreviewUrl: null,
+  mediaKind: null,
 };
 
 const INITIAL_PIPELINE: PipelineState = {
   best_practice: "idle",
   brand_tone: "idle",
   audience: "idle",
+  caption: "idle",
 };
 
 function stepToResultKey(step: EvaluationStep) {
   if (step === "best_practice") return "bestPractice" as const;
   if (step === "brand_tone") return "brandTone" as const;
-  return "audience" as const;
+  if (step === "audience") return "audience" as const;
+  return "caption" as const;
 }
 
 export default function ReviewPage() {
@@ -48,8 +52,10 @@ export default function ReviewPage() {
     bestPractice: CheckResult;
     brandTone: CheckResult;
     audience: AudienceResult;
+    caption: CheckResult;
   }>>({});
   const [fullResult, setFullResult] = useState<FullEvaluationResult | null>(null);
+  const [savedReviewId, setSavedReviewId] = useState<string | null>(null);
 
   const validate = useCallback(() => {
     const nextErrors: { platform?: string; caption?: string } = {};
@@ -65,18 +71,25 @@ export default function ReviewPage() {
     setHasStarted(true);
     setIsRunning(true);
     setFullResult(null);
+    setSavedReviewId(null);
     setResults({});
     setPipelineState({
       best_practice: "running",
       brand_tone: "idle",
       audience: "idle",
+      caption: "idle",
     });
 
     const input = {
       platform: formData.platform as Platform,
       caption: formData.caption,
-      imageFile: formData.imageFile,
+      mediaFile: formData.mediaFile,
+      mediaKind: formData.mediaKind,
     };
+
+    if (formData.mediaKind === "video") {
+      toast.message("Sampling reel frames for review…");
+    }
 
     try {
       const { result, source } = await runRemoteEvaluation(
@@ -89,6 +102,7 @@ export default function ReviewPage() {
             [step]: "complete",
             ...(step === "best_practice" ? { brand_tone: "running" } : {}),
             ...(step === "brand_tone" ? { audience: "running" } : {}),
+            ...(step === "audience" ? { caption: "running" } : {}),
           }));
         },
       );
@@ -97,13 +111,24 @@ export default function ReviewPage() {
         best_practice: "complete",
         brand_tone: "complete",
         audience: "complete",
+        caption: "complete",
       });
+      const saved = addReviewFromEvaluation({
+        platform: formData.platform as Platform,
+        caption: formData.caption,
+        result,
+      });
+      setSavedReviewId(saved.id);
+      const mediaBit =
+        formData.mediaKind === "video"
+          ? " and reel frames"
+          : formData.mediaKind === "image"
+            ? " and image"
+            : "";
       toast.success(
         source === "claude"
-          ? "Claude reviewed caption" +
-              (formData.imageFile ? " and image" : "") +
-              "."
-          : "Reviewed with rule-based checks (no API key).",
+          ? `Claude reviewed caption${mediaBit}. Saved to history.`
+          : "Reviewed with rule-based checks. Saved to history.",
       );
     } catch (error) {
       const message =
@@ -118,8 +143,8 @@ export default function ReviewPage() {
   }, [formData, validate]);
 
   const handleReset = useCallback(() => {
-    if (formData.imagePreviewUrl) {
-      URL.revokeObjectURL(formData.imagePreviewUrl);
+    if (formData.mediaPreviewUrl) {
+      URL.revokeObjectURL(formData.mediaPreviewUrl);
     }
     setFormData(INITIAL_FORM);
     setErrors({});
@@ -128,20 +153,25 @@ export default function ReviewPage() {
     setPipelineState(INITIAL_PIPELINE);
     setResults({});
     setFullResult(null);
-  }, [formData.imagePreviewUrl]);
+    setSavedReviewId(null);
+  }, [formData.mediaPreviewUrl]);
 
   const handleRevise = useCallback(() => {
     setHasStarted(false);
     setPipelineState(INITIAL_PIPELINE);
     setResults({});
     setFullResult(null);
+    setSavedReviewId(null);
   }, []);
 
   const handleApprove = useCallback(() => {
+    if (savedReviewId) {
+      markReviewSignedOff(savedReviewId);
+    }
     toast.success("Marked ready for client", {
       description: "Sign-off recorded. Creative can proceed to client review.",
     });
-  }, []);
+  }, [savedReviewId]);
 
   const statusLabel = !hasStarted
     ? "Draft"
@@ -155,7 +185,7 @@ export default function ReviewPage() {
     <>
       <PageHeader
         title="Creative review"
-        description="Add copy and an optional image. Claude analyses both against the Citroën brief."
+        description="Add copy and an optional image or reel. Claude reviews both against the Citroën brief."
         actions={
           <Badge variant="outline" className="font-normal">
             {statusLabel}
@@ -194,6 +224,7 @@ export default function ReviewPage() {
                     <Step>{STEP_LABELS.best_practice}</Step>
                     <Step>{STEP_LABELS.brand_tone}</Step>
                     <Step>{STEP_LABELS.audience}</Step>
+                    <Step>{STEP_LABELS.caption}</Step>
                   </Stepper>
                 </div>
               </details>
@@ -215,6 +246,7 @@ export default function ReviewPage() {
                   <Step>{STEP_LABELS.best_practice}</Step>
                   <Step>{STEP_LABELS.brand_tone}</Step>
                   <Step>{STEP_LABELS.audience}</Step>
+                  <Step>{STEP_LABELS.caption}</Step>
                 </Stepper>
               </div>
             </>

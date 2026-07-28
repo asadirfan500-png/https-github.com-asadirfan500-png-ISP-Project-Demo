@@ -2,7 +2,11 @@ export type Platform = "instagram" | "tiktok" | "linkedin" | "facebook" | "x";
 
 export type CheckStatus = "pass" | "warn" | "fail";
 
-export type EvaluationStep = "best_practice" | "brand_tone" | "audience";
+export type EvaluationStep =
+  | "best_practice"
+  | "brand_tone"
+  | "audience"
+  | "caption";
 
 export type Receptiveness = "high" | "medium" | "low";
 
@@ -44,16 +48,21 @@ export interface FullEvaluationResult {
   bestPractice: CheckResult;
   brandTone: CheckResult;
   audience: AudienceResult;
+  caption: CheckResult;
   aggregateScore: number;
   overallStatus: CheckStatus;
   topActions: string[];
 }
 
+export type MediaKind = "image" | "video";
+
 export interface CreativeFormData {
   platform: Platform | "";
   caption: string;
-  imageFile: File | null;
-  imagePreviewUrl: string | null;
+  /** Still image or reel/video file for pre-publish review. */
+  mediaFile: File | null;
+  mediaPreviewUrl: string | null;
+  mediaKind: MediaKind | null;
 }
 
 export type PipelineStepState = "idle" | "running" | "complete";
@@ -76,9 +85,12 @@ export interface ReviewHistoryItem {
   score: number;
   status: CheckStatus;
   reviewer: string;
+  /** Set when user marks ready for client */
+  signedOff?: boolean;
   checks: {
     bestPractice: { score: number; status: CheckStatus; summary: string };
     brandTone: { score: number; status: CheckStatus; summary: string };
     audience: { score: number; status: CheckStatus; summary: string };
+    caption: { score: number; status: CheckStatus; summary: string };
   };
 }

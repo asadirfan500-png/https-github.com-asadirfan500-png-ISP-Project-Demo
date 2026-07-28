@@ -3,6 +3,15 @@
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { CITROEN_CLIENT } from "@/lib/data/citroen";
+import {
+  DEFAULT_CITROEN_CLIENT,
+  loadClientsFromStorage,
+  loadFocusedClientId,
+  normalizeClients,
+  saveClientsToStorage,
+  saveFocusedClientId,
+  type StoredClient,
+} from "@/lib/clients-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
@@ -54,14 +63,7 @@ const CLIENT_COLORS = [
   "from-[#8b5cf6] to-[#4c1d95]",
 ];
 
-interface ClientProfile {
-  id: string;
-  name: string;
-  /** Data URL or remote URL — cropped/centred inside the circle */
-  imageUrl?: string;
-  /** Logos use contain + padding; photos use cover */
-  imageFit?: "cover" | "contain";
-}
+type ClientProfile = StoredClient;
 
 function clientInitial(name: string) {
   return name.trim().charAt(0).toUpperCase() || "?";
@@ -88,14 +90,10 @@ function readImageAsDataUrl(file: File): Promise<string> {
 export function WelcomeHome() {
   const reducedMotion = useReducedMotion();
   const [clients, setClients] = useState<ClientProfile[]>([
-    {
-      id: "citroen",
-      name: CITROEN_CLIENT.name,
-      imageUrl: CITROEN_CLIENT.logoUrl,
-      imageFit: "contain",
-    },
+    DEFAULT_CITROEN_CLIENT,
   ]);
   const [focusedId, setFocusedId] = useState("citroen");
+  const [hydrated, setHydrated] = useState(false);
   const [phase, setPhase] = useState<"select" | "workspace">("select");
   const [addOpen, setAddOpen] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
@@ -105,6 +103,26 @@ export function WelcomeHome() {
   const logoInputRef = useRef<HTMLInputElement>(null);
   const addLogoInputRef = useRef<HTMLInputElement>(null);
   const uid = useId();
+
+  useEffect(() => {
+    const stored = loadClientsFromStorage();
+    setClients(stored);
+    const focus = loadFocusedClientId(stored[0]?.id ?? "citroen");
+    setFocusedId(
+      stored.some((c) => c.id === focus) ? focus : (stored[0]?.id ?? "citroen"),
+    );
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    saveClientsToStorage(clients);
+  }, [clients, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    saveFocusedClientId(focusedId);
+  }, [focusedId, hydrated]);
 
   const focused = clients.find((c) => c.id === focusedId) ?? clients[0];
 
@@ -118,7 +136,16 @@ export function WelcomeHome() {
     const name = newClientName.trim();
     if (!name) return;
     const id = `${name.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`;
-    setClients((prev) => [...prev, { id, name, imageUrl: newClientImage }]);
+    const next = normalizeClients([
+      ...clients,
+      {
+        id,
+        name,
+        imageUrl: newClientImage,
+        imageFit: newClientImage ? "contain" : "cover",
+      },
+    ]);
+    setClients(next);
     setFocusedId(id);
     setNewClientName("");
     setNewClientImage(undefined);
@@ -128,20 +155,23 @@ export function WelcomeHome() {
 
   function handleRemoveClient(id: string) {
     if (clients.length <= 1) return;
-    const next = clients.filter((c) => c.id !== id);
+    const next = normalizeClients(clients.filter((c) => c.id !== id));
     setClients(next);
-    setFocusedId(next[0].id);
+    setFocusedId(next[0]?.id ?? "citroen");
     setOptionsOpen(false);
   }
 
-  async function handleLogoUpload(
-    clientId: string,
-    file: File | undefined,
-  ) {
+  async function handleLogoUpload(clientId: string, file: File | undefined) {
     if (!file || !file.type.startsWith("image/")) return;
     const imageUrl = await readImageAsDataUrl(file);
     setClients((prev) =>
-      prev.map((c) => (c.id === clientId ? { ...c, imageUrl } : c)),
+      normalizeClients(
+        prev.map((c) =>
+          c.id === clientId
+            ? { ...c, imageUrl, imageFit: "contain" as const }
+            : c,
+        ),
+      ),
     );
     setOptionsOpen(false);
   }
@@ -219,7 +249,6 @@ export function WelcomeHome() {
           Who&apos;s the client today?
         </p>
 
-        {/* Client row — scale/opacity only (no size swaps) for smooth focus */}
         <div className="mt-14 flex w-full items-center justify-center gap-10 overflow-visible px-2 sm:gap-14">
           {clients.map((client) => {
             const isFocused = focusedId === client.id;
@@ -229,7 +258,9 @@ export function WelcomeHome() {
                 className={cn(
                   "relative flex shrink-0 flex-col items-center will-change-transform",
                   "transition-[transform,opacity] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]",
-                  isFocused ? "z-20 scale-110 opacity-100" : "z-10 scale-90 opacity-55",
+                  isFocused
+                    ? "z-20 scale-110 opacity-100"
+                    : "z-10 scale-90 opacity-55",
                 )}
               >
                 <button
@@ -342,7 +373,6 @@ export function WelcomeHome() {
             }}
           />
 
-          {/* Add client — right side */}
           <div className="flex shrink-0 flex-col items-center">
             <button
               type="button"
@@ -369,7 +399,7 @@ export function WelcomeHome() {
                     "animate-[ps5-plus-ring_2.8s_ease-in-out_infinite]",
                 )}
               />
-              <span className="relative flex size-full items-center justify-center rounded-full border border-foreground/20 bg-foreground/5 text-muted-foreground shadow-[0_0_50px_-10px_rgba(0,0,0,0.2)] dark:shadow-[0_0_50px_-10px_rgba(255,255,255,0.25)] transition-all duration-300 group-hover:scale-105 group-hover:border-foreground/40 group-hover:bg-foreground/10 group-hover:text-foreground">
+              <span className="relative flex size-full items-center justify-center rounded-full border border-foreground/20 bg-foreground/5 text-muted-foreground shadow-[0_0_50px_-10px_rgba(0,0,0,0.2)] transition-all duration-300 group-hover:scale-105 group-hover:border-foreground/40 group-hover:bg-foreground/10 group-hover:text-foreground dark:shadow-[0_0_50px_-10px_rgba(255,255,255,0.25)]">
                 <Plus
                   className={cn(
                     "size-8 sm:size-10",
@@ -380,7 +410,9 @@ export function WelcomeHome() {
                 />
               </span>
             </button>
-            <p className="mt-3 text-sm font-medium text-muted-foreground">Add Client</p>
+            <p className="mt-3 text-sm font-medium text-muted-foreground">
+              Add Client
+            </p>
           </div>
         </div>
 
@@ -396,7 +428,7 @@ export function WelcomeHome() {
 
       {addOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/70 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm dark:bg-black/70"
           role="dialog"
           aria-modal="true"
           aria-labelledby="add-client-title"
@@ -438,6 +470,7 @@ export function WelcomeHome() {
                     <ClientAvatar
                       name={newClientName || "Preview"}
                       imageUrl={newClientImage}
+                      imageFit="contain"
                       size="md"
                     />
                   ) : (
@@ -509,7 +542,9 @@ function ClientAvatar({
     <span
       className={cn(
         "relative block overflow-hidden rounded-full shadow-[0_0_40px_-8px_rgba(93,31,35,0.55)] transition-[box-shadow] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]",
-        size === "lg" ? "size-[5.5rem] sm:size-28" : "size-[4.5rem] sm:size-24",
+        size === "lg"
+          ? "size-[5.5rem] sm:size-28"
+          : "size-[4.5rem] sm:size-24",
         imageUrl
           ? isLogo
             ? "bg-white"
@@ -524,9 +559,7 @@ function ClientAvatar({
           alt=""
           className={cn(
             "absolute inset-0 size-full object-center",
-            isLogo
-              ? "object-contain p-[18%] sm:p-[20%]"
-              : "object-cover",
+            isLogo ? "object-contain p-[18%] sm:p-[20%]" : "object-cover",
           )}
         />
       ) : (
@@ -557,7 +590,7 @@ function FloatyBackButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "absolute top-1/2 left-4 z-30 flex -translate-y-1/2 items-center gap-3 rounded-full border border-foreground/20 bg-card/80 px-5 py-3.5 text-foreground shadow-[0_0_40px_-8px_rgba(232,77,154,0.35)] dark:shadow-[0_0_40px_-8px_rgba(93,31,35,0.65)] backdrop-blur-md transition-all hover:border-foreground/35 hover:bg-card sm:left-8 sm:px-6 sm:py-4",
+        "absolute top-1/2 left-4 z-30 flex -translate-y-1/2 items-center gap-3 rounded-full border border-foreground/20 bg-card/80 px-5 py-3.5 text-foreground shadow-[0_0_40px_-8px_rgba(232,77,154,0.35)] backdrop-blur-md transition-all hover:border-foreground/35 hover:bg-card sm:left-8 sm:px-6 sm:py-4 dark:shadow-[0_0_40px_-8px_rgba(93,31,35,0.65)]",
         !reducedMotion && "animate-[ps5-float_4s_ease-in-out_infinite]",
       )}
       aria-label={`Go back to ${label}`}

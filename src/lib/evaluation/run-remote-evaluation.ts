@@ -1,13 +1,20 @@
 import type {
   FullEvaluationResult,
+  MediaKind,
   Platform,
   StepEvaluationResult,
 } from "@/lib/types";
+import {
+  extractVideoFrames,
+  isVideoFile,
+} from "@/lib/media/extract-video-frames";
 
-export async function fileToBase64(file: File): Promise<{
+export type VisualFrame = {
   base64: string;
   mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
-}> {
+};
+
+export async function fileToBase64(file: File): Promise<VisualFrame> {
   const buffer = await file.arrayBuffer();
   const bytes = new Uint8Array(buffer);
   let binary = "";
@@ -30,28 +37,36 @@ export async function fileToBase64(file: File): Promise<{
 
 /**
  * Runs evaluation via /api/evaluate (Claude when key is set).
- * Invokes onStepComplete in sequence so the existing stepper UI still animates.
+ * Videos are sampled into still frames before upload — Claude does not take video natively.
  */
 export async function runRemoteEvaluation(
   input: {
     platform: Platform;
     caption: string;
-    imageFile: File | null;
+    mediaFile: File | null;
+    mediaKind: MediaKind | null;
   },
   onStepComplete?: (result: StepEvaluationResult) => void,
 ): Promise<{ result: FullEvaluationResult; source: "claude" | "rules" }> {
-  let imageBase64: string | undefined;
-  let imageMediaType:
-    | "image/jpeg"
-    | "image/png"
-    | "image/gif"
-    | "image/webp"
-    | undefined;
+  let frames: VisualFrame[] = [];
+  let visualKind: MediaKind | "none" = "none";
 
-  if (input.imageFile) {
-    const encoded = await fileToBase64(input.imageFile);
-    imageBase64 = encoded.base64;
-    imageMediaType = encoded.mediaType;
+  if (input.mediaFile) {
+    if (input.mediaKind === "video" || isVideoFile(input.mediaFile)) {
+      visualKind = "video";
+      const extracted = await extractVideoFrames(input.mediaFile, {
+        count: 5,
+        maxWidth: 960,
+        quality: 0.72,
+      });
+      frames = extracted.map((f) => ({
+        base64: f.base64,
+        mediaType: f.mediaType,
+      }));
+    } else {
+      visualKind = "image";
+      frames = [await fileToBase64(input.mediaFile)];
+    }
   }
 
   const response = await fetch("/api/evaluate", {
@@ -60,8 +75,11 @@ export async function runRemoteEvaluation(
     body: JSON.stringify({
       platform: input.platform,
       caption: input.caption,
-      imageBase64,
-      imageMediaType,
+      visualKind,
+      frames,
+      // Back-compat for older handlers
+      imageBase64: frames[0]?.base64,
+      imageMediaType: frames[0]?.mediaType,
     }),
   });
 
@@ -78,12 +96,13 @@ export async function runRemoteEvaluation(
   const { result } = data;
   const source = data.source ?? "rules";
 
-  // Pace step callbacks so the pipeline UI still feels sequential
   onStepComplete?.({ step: "best_practice", data: result.bestPractice });
-  await delay(450);
+  await delay(400);
   onStepComplete?.({ step: "brand_tone", data: result.brandTone });
-  await delay(450);
+  await delay(400);
   onStepComplete?.({ step: "audience", data: result.audience });
+  await delay(400);
+  onStepComplete?.({ step: "caption", data: result.caption });
 
   return { result, source };
 }
