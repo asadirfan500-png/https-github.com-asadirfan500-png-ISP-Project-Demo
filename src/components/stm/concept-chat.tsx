@@ -4,11 +4,21 @@ import {
   type FormEvent,
   type KeyboardEvent,
   type RefObject,
+  useCallback,
   useEffect,
   useRef,
   useState,
 } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import {
+  clearActiveConceptChat,
+  getConceptChatById,
+  loadActiveConceptChat,
+  saveActiveConceptChat,
+  upsertConceptChat,
+  type ConceptChatMessage,
+} from "@/lib/concept-chats-store";
 import {
   greetingFirstName,
   loadUserName,
@@ -25,15 +35,7 @@ import {
   Users,
 } from "lucide-react";
 
-type ChatRole = "user" | "assistant";
-
-type ChatMessage = {
-  id: string;
-  role: ChatRole;
-  content: string;
-  /** UI-only greeting — not sent to the API */
-  seed?: boolean;
-};
+type ChatMessage = ConceptChatMessage;
 
 const QUICK_PROMPTS = [
   {
@@ -57,6 +59,10 @@ function makeId() {
   return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function makeChatId() {
+  return `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 function buildGreeting(): ChatMessage {
   const name = greetingFirstName(loadUserName(), "there");
   return {
@@ -69,6 +75,10 @@ function buildGreeting(): ChatMessage {
 
 function getGreetingName() {
   return greetingFirstName(loadUserName(), "there");
+}
+
+function hasUserMessages(messages: ChatMessage[]) {
+  return messages.some((m) => m.role === "user" && m.content.trim() && !m.seed);
 }
 
 type ComposerProps = {
@@ -93,7 +103,9 @@ function Composer({
     onSend();
   }
 
-  function handleKeyDown(e: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) {
+  function handleKeyDown(
+    e: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       onSend();
@@ -163,29 +175,92 @@ function Composer({
 }
 
 export function ConceptChat() {
-  // TODO: persist concept chats later
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const chatFromUrl = searchParams.get("chat");
+
   const [messages, setMessages] = useState<ChatMessage[]>([buildGreeting()]);
+  const [chatId, setChatId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [greetingName, setGreetingName] = useState("there");
-  const listRef = useRef<HTMLDivElement>(null);
+  const [hydrated, setHydrated] = useState(false);
+  const threadScrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const pillInputRef = useRef<HTMLInputElement>(null);
   const threadInputRef = useRef<HTMLTextAreaElement>(null);
+  const chatIdRef = useRef<string | null>(null);
   const stickToBottomRef = useRef(true);
-  const scrollRafRef = useRef<number | null>(null);
 
   const isEmpty =
     messages.length === 1 && Boolean(messages[0]?.seed) && !isStreaming;
 
   useEffect(() => {
+    chatIdRef.current = chatId;
+  }, [chatId]);
+
+  useEffect(() => {
     setGreetingName(getGreetingName());
+
+    if (chatFromUrl) {
+      const saved = getConceptChatById(chatFromUrl);
+      if (saved) {
+        setChatId(saved.id);
+        setMessages([buildGreeting(), ...saved.messages]);
+        saveActiveConceptChat({
+          id: saved.id,
+          messages: [buildGreeting(), ...saved.messages],
+          updatedAt: new Date().toISOString(),
+        });
+        setHydrated(true);
+        return;
+      }
+    }
+
+    const active = loadActiveConceptChat();
+    if (active && active.messages.some((m) => m.role === "user")) {
+      setChatId(active.id);
+      setMessages(
+        active.messages.some((m) => m.seed)
+          ? active.messages
+          : [buildGreeting(), ...active.messages],
+      );
+    } else {
+      setMessages([buildGreeting()]);
+      setChatId(null);
+    }
+    setHydrated(true);
+  }, [chatFromUrl]);
+
+  const persistSession = useCallback((nextMessages: ChatMessage[], id: string | null) => {
+    if (!hasUserMessages(nextMessages)) {
+      clearActiveConceptChat();
+      return id;
+    }
+    const resolvedId = id ?? makeChatId();
+    saveActiveConceptChat({
+      id: resolvedId,
+      messages: nextMessages,
+      updatedAt: new Date().toISOString(),
+    });
+    upsertConceptChat({ id: resolvedId, messages: nextMessages });
+    return resolvedId;
   }, []);
 
-  function scrollThreadToBottom(behavior: ScrollBehavior) {
-    const el = listRef.current;
+  // Keep active session in sync when navigating away mid-chat
+  useEffect(() => {
+    if (!hydrated || isStreaming) return;
+    if (!hasUserMessages(messages)) return;
+    const id = persistSession(messages, chatIdRef.current);
+    if (id !== chatIdRef.current) {
+      setChatId(id);
+    }
+  }, [messages, hydrated, isStreaming, persistSession]);
+
+  function scrollThreadToBottom(smooth: boolean) {
+    const el = threadScrollRef.current;
     if (!el) return;
-    if (behavior === "smooth") {
+    if (smooth) {
       el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
     } else {
       el.scrollTop = el.scrollHeight;
@@ -194,32 +269,15 @@ export function ConceptChat() {
 
   useEffect(() => {
     if (isEmpty || !stickToBottomRef.current) return;
-
-    // Streaming: pin instantly each frame — overlapping "smooth" scrolls look glitchy.
-    if (isStreaming) {
-      if (scrollRafRef.current != null) {
-        cancelAnimationFrame(scrollRafRef.current);
-      }
-      scrollRafRef.current = requestAnimationFrame(() => {
-        scrollThreadToBottom("auto");
-        scrollRafRef.current = null;
-      });
-      return () => {
-        if (scrollRafRef.current != null) {
-          cancelAnimationFrame(scrollRafRef.current);
-          scrollRafRef.current = null;
-        }
-      };
-    }
-
-    scrollThreadToBottom("smooth");
+    // Instant while streaming avoids competing smooth animations every token
+    scrollThreadToBottom(!isStreaming);
   }, [messages, isStreaming, isEmpty]);
 
-  function handleThreadScroll() {
-    const el = listRef.current;
+  function onThreadScroll() {
+    const el = threadScrollRef.current;
     if (!el) return;
-    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    stickToBottomRef.current = distanceFromBottom < 96;
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+    stickToBottomRef.current = distance < 80;
   }
 
   function resetChat() {
@@ -228,15 +286,21 @@ export function ConceptChat() {
     setIsStreaming(false);
     setInput("");
     setGreetingName(getGreetingName());
-    stickToBottomRef.current = true;
+    if (hasUserMessages(messages)) {
+      persistSession(messages, chatIdRef.current);
+    }
+    clearActiveConceptChat();
+    setChatId(null);
     setMessages([buildGreeting()]);
+    stickToBottomRef.current = true;
+    if (chatFromUrl) {
+      router.replace("/concept");
+    }
   }
 
   async function sendMessage(overrideText?: string) {
     const text = (overrideText ?? input).trim();
     if (!text || isStreaming) return;
-
-    stickToBottomRef.current = true;
 
     const userMsg: ChatMessage = {
       id: makeId(),
@@ -244,6 +308,12 @@ export function ConceptChat() {
       content: text,
     };
     const assistantId = makeId();
+    let workingId = chatIdRef.current ?? makeChatId();
+    if (!chatIdRef.current) {
+      setChatId(workingId);
+      chatIdRef.current = workingId;
+    }
+
     const nextMessages = [
       ...messages,
       userMsg,
@@ -252,6 +322,12 @@ export function ConceptChat() {
     setMessages(nextMessages);
     setInput("");
     setIsStreaming(true);
+    stickToBottomRef.current = true;
+    saveActiveConceptChat({
+      id: workingId,
+      messages: nextMessages,
+      updatedAt: new Date().toISOString(),
+    });
 
     const payload = nextMessages
       .filter((m) => !m.seed && m.content.trim())
@@ -288,26 +364,34 @@ export function ConceptChat() {
         if (done) break;
         assembled += decoder.decode(value, { stream: true });
         const snapshot = assembled;
-        setMessages((prev) =>
-          prev.map((m) =>
+        setMessages((prev) => {
+          const updated = prev.map((m) =>
             m.id === assistantId ? { ...m, content: snapshot } : m,
-          ),
-        );
+          );
+          saveActiveConceptChat({
+            id: workingId,
+            messages: updated,
+            updatedAt: new Date().toISOString(),
+          });
+          return updated;
+        });
       }
       assembled += decoder.decode();
-      setMessages((prev) =>
-        prev.map((m) =>
+      setMessages((prev) => {
+        const updated = prev.map((m) =>
           m.id === assistantId
             ? { ...m, content: assembled.trim() || m.content }
             : m,
-        ),
-      );
+        );
+        persistSession(updated, workingId);
+        return updated;
+      });
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
       const message =
         err instanceof Error ? err.message : "Concept chat failed";
-      setMessages((prev) =>
-        prev.map((m) =>
+      setMessages((prev) => {
+        const updated = prev.map((m) =>
           m.id === assistantId
             ? {
                 ...m,
@@ -316,12 +400,23 @@ export function ConceptChat() {
                   `I couldn't complete that check. ${message}`,
               }
             : m,
-        ),
-      );
+        );
+        persistSession(updated, workingId);
+        return updated;
+      });
     } finally {
       setIsStreaming(false);
       abortRef.current = null;
     }
+  }
+
+  if (!hydrated) {
+    return (
+      <div className="flex min-h-[min(78vh,720px)] items-center justify-center text-sm text-muted-foreground">
+        <Loader2 className="mr-2 size-4 animate-spin" />
+        Loading…
+      </div>
+    );
   }
 
   return (
@@ -336,7 +431,8 @@ export function ConceptChat() {
           </div>
           {!isEmpty && (
             <p className="mt-1 text-xs text-muted-foreground">
-              Early gate only — a human keeps the final call.
+              Early gate only — a human keeps the final call. Chats are saved to
+              History.
             </p>
           )}
         </div>
@@ -392,8 +488,8 @@ export function ConceptChat() {
         ) : (
           <>
             <div
-              ref={listRef}
-              onScroll={handleThreadScroll}
+              ref={threadScrollRef}
+              onScroll={onThreadScroll}
               className="flex-1 space-y-3 overflow-y-auto px-4 py-4 sm:px-6"
             >
               {messages
