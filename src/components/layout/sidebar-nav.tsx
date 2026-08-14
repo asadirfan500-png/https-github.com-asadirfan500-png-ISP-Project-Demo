@@ -31,8 +31,8 @@ import {
 const WORKSPACE_LINKS = [
   { href: "/", label: "Home", icon: Home },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/review", label: "Review", icon: ClipboardList },
   { href: "/concept", label: "Concept Check", icon: MessageSquareText },
+  { href: "/review", label: "Review", icon: ClipboardList },
   { href: "/history", label: "History", icon: History },
 ];
 

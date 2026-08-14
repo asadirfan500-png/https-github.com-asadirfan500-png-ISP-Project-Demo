@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -86,6 +87,127 @@ function UserMenu() {
 
   const displayName = profile.name.trim() || "Guest";
   const displayTitle = profile.jobTitle.trim() || "—";
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const editDialog =
+    editOpen && mounted
+      ? createPortal(
+          <div
+            className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm dark:bg-black/70"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={`${uid}-edit-title`}
+            onClick={() => setEditOpen(false)}
+          >
+            <div
+              className="relative w-full max-w-sm rounded-2xl border border-border bg-popover p-5 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <h2
+                  id={`${uid}-edit-title`}
+                  className="text-base font-semibold text-foreground"
+                >
+                  Edit profile
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setEditOpen(false)}
+                  aria-label="Close"
+                  className="rounded-md p-1 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Update your name, job title, or photo.
+              </p>
+              <form onSubmit={handleSave} className="mt-4 space-y-4">
+                <div className="flex flex-col items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => photoInputRef.current?.click()}
+                    className="group relative"
+                    aria-label="Change profile photo"
+                  >
+                    {photoDraft ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={photoDraft}
+                        alt=""
+                        className="size-20 rounded-full object-cover ring-2 ring-border"
+                      />
+                    ) : (
+                      <span className="flex size-20 items-center justify-center rounded-full border border-dashed border-foreground/25 bg-foreground/5 text-muted-foreground transition-colors group-hover:border-foreground/40 group-hover:text-foreground">
+                        <UserRound className="size-7" />
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => photoInputRef.current?.click()}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    {photoDraft ? "Change photo" : "Upload photo"}
+                  </button>
+                  <input
+                    ref={photoInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    onChange={(e) => {
+                      void handlePhoto(e.target.files?.[0]);
+                      e.target.value = "";
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Name
+                  </label>
+                  <Input
+                    value={nameDraft}
+                    onChange={(e) => setNameDraft(e.target.value)}
+                    placeholder="Your name"
+                    className="border-border bg-foreground/5"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Job title
+                  </label>
+                  <Input
+                    value={jobTitleDraft}
+                    onChange={(e) => setJobTitleDraft(e.target.value)}
+                    placeholder="Job title"
+                    className="border-border bg-foreground/5"
+                  />
+                </div>
+                <div className="flex justify-end gap-2 pt-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setEditOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={!nameDraft.trim() || !jobTitleDraft.trim()}
+                  >
+                    Save
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
 
   return (
     <>
@@ -112,118 +234,7 @@ function UserMenu() {
           </p>
         </div>
       </button>
-
-      {editOpen && (
-        <div
-          className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm dark:bg-black/70"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby={`${uid}-edit-title`}
-          onClick={() => setEditOpen(false)}
-        >
-          <div
-            className="relative w-full max-w-sm rounded-2xl border border-border bg-popover p-5 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <h2
-                id={`${uid}-edit-title`}
-                className="text-base font-semibold text-foreground"
-              >
-                Edit profile
-              </h2>
-              <button
-                type="button"
-                onClick={() => setEditOpen(false)}
-                aria-label="Close"
-                className="rounded-md p-1 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
-              >
-                <X className="size-4" />
-              </button>
-            </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Update your name, job title, or photo.
-            </p>
-            <form onSubmit={handleSave} className="mt-4 space-y-4">
-              <div className="flex flex-col items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => photoInputRef.current?.click()}
-                  className="group relative"
-                  aria-label="Change profile photo"
-                >
-                  {photoDraft ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={photoDraft}
-                      alt=""
-                      className="size-20 rounded-full object-cover ring-2 ring-border"
-                    />
-                  ) : (
-                    <span className="flex size-20 items-center justify-center rounded-full border border-dashed border-foreground/25 bg-foreground/5 text-muted-foreground transition-colors group-hover:border-foreground/40 group-hover:text-foreground">
-                      <UserRound className="size-7" />
-                    </span>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => photoInputRef.current?.click()}
-                  className="text-xs text-muted-foreground hover:text-foreground"
-                >
-                  {photoDraft ? "Change photo" : "Upload photo"}
-                </button>
-                <input
-                  ref={photoInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="sr-only"
-                  onChange={(e) => {
-                    void handlePhoto(e.target.files?.[0]);
-                    e.target.value = "";
-                  }}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">
-                  Name
-                </label>
-                <Input
-                  value={nameDraft}
-                  onChange={(e) => setNameDraft(e.target.value)}
-                  placeholder="Your name"
-                  className="border-border bg-foreground/5"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">
-                  Job title
-                </label>
-                <Input
-                  value={jobTitleDraft}
-                  onChange={(e) => setJobTitleDraft(e.target.value)}
-                  placeholder="Job title"
-                  className="border-border bg-foreground/5"
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setEditOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={!nameDraft.trim() || !jobTitleDraft.trim()}
-                >
-                  Save
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {editDialog}
     </>
   );
 }
