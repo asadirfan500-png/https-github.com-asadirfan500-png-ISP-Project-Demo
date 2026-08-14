@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import {
+  type FormEvent,
+  type KeyboardEvent,
+  type RefObject,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Button } from "@/components/ui/button";
 import {
   greetingFirstName,
@@ -62,6 +69,97 @@ function buildGreeting(): ChatMessage {
 
 function getGreetingName() {
   return greetingFirstName(loadUserName(), "there");
+}
+
+type ComposerProps = {
+  pill?: boolean;
+  input: string;
+  isStreaming: boolean;
+  onInputChange: (value: string) => void;
+  onSend: () => void;
+  inputRef: RefObject<HTMLInputElement | HTMLTextAreaElement | null>;
+};
+
+function Composer({
+  pill,
+  input,
+  isStreaming,
+  onInputChange,
+  onSend,
+  inputRef,
+}: ComposerProps) {
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    onSend();
+  }
+
+  function handleKeyDown(e: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      onSend();
+    }
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className={cn(
+        "flex w-full items-center gap-2 border border-border bg-muted/40 backdrop-blur-md",
+        pill
+          ? "rounded-full px-3 py-2 shadow-[0_0_40px_-12px_rgba(0,0,0,0.45)]"
+          : "rounded-2xl px-3 py-2.5",
+      )}
+    >
+      <button
+        type="button"
+        className="flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+        aria-label="Attach (coming soon)"
+        title="Attachments coming soon"
+        onClick={() => inputRef.current?.focus()}
+      >
+        <Plus className="size-4" strokeWidth={2} />
+      </button>
+      {pill ? (
+        <input
+          ref={inputRef as RefObject<HTMLInputElement | null>}
+          value={input}
+          onChange={(e) => onInputChange(e.target.value)}
+          placeholder="Ask anything"
+          disabled={isStreaming}
+          className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+          onKeyDown={handleKeyDown}
+        />
+      ) : (
+        <textarea
+          ref={inputRef as RefObject<HTMLTextAreaElement | null>}
+          value={input}
+          onChange={(e) => onInputChange(e.target.value)}
+          placeholder="Paste a concept or rough caption…"
+          disabled={isStreaming}
+          rows={1}
+          className="max-h-32 min-h-[36px] min-w-0 flex-1 resize-none bg-transparent py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+          onKeyDown={handleKeyDown}
+        />
+      )}
+      <button
+        type="submit"
+        disabled={isStreaming || !input.trim()}
+        className={cn(
+          "flex size-9 shrink-0 items-center justify-center rounded-full transition-colors",
+          input.trim() && !isStreaming
+            ? "bg-primary text-primary-foreground hover:bg-primary/90"
+            : "bg-foreground/10 text-muted-foreground",
+        )}
+        aria-label="Send"
+      >
+        {isStreaming ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <Send className="size-4" />
+        )}
+      </button>
+    </form>
+  );
 }
 
 export function ConceptChat() {
@@ -187,88 +285,6 @@ export function ConceptChat() {
     }
   }
 
-  function Composer({
-    pill,
-  }: {
-    pill?: boolean;
-  }) {
-    return (
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void sendMessage();
-        }}
-        className={cn(
-          "flex w-full items-center gap-2 border border-border bg-muted/40 backdrop-blur-md",
-          pill
-            ? "rounded-full px-3 py-2 shadow-[0_0_40px_-12px_rgba(0,0,0,0.45)]"
-            : "rounded-2xl px-3 py-2.5",
-        )}
-      >
-        <button
-          type="button"
-          className="flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
-          aria-label="Attach (coming soon)"
-          title="Attachments coming soon"
-          onClick={() =>
-            (pill ? pillInputRef : threadInputRef).current?.focus()
-          }
-        >
-          <Plus className="size-4" strokeWidth={2} />
-        </button>
-        {pill ? (
-          <input
-            ref={pillInputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask anything"
-            disabled={isStreaming}
-            className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                void sendMessage();
-              }
-            }}
-          />
-        ) : (
-          <textarea
-            ref={threadInputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Paste a concept or rough caption…"
-            disabled={isStreaming}
-            rows={1}
-            className="max-h-32 min-h-[36px] min-w-0 flex-1 resize-none bg-transparent py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                void sendMessage();
-              }
-            }}
-          />
-        )}
-        <button
-          type="submit"
-          disabled={isStreaming || !input.trim()}
-          className={cn(
-            "flex size-9 shrink-0 items-center justify-center rounded-full transition-colors",
-            input.trim() && !isStreaming
-              ? "bg-primary text-primary-foreground hover:bg-primary/90"
-              : "bg-foreground/10 text-muted-foreground",
-          )}
-          aria-label="Send"
-        >
-          {isStreaming ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Send className="size-4" />
-          )}
-        </button>
-      </form>
-    );
-  }
-
   return (
     <div className="flex min-h-[min(78vh,720px)] flex-col">
       <div className="mb-4 flex items-start justify-between gap-3">
@@ -304,7 +320,14 @@ export function ConceptChat() {
               How may I help you, {greetingName}?
             </h2>
             <div className="mt-8 w-full max-w-2xl">
-              <Composer pill />
+              <Composer
+                pill
+                input={input}
+                isStreaming={isStreaming}
+                onInputChange={setInput}
+                onSend={() => void sendMessage()}
+                inputRef={pillInputRef}
+              />
               <div className="mt-5 space-y-1">
                 {QUICK_PROMPTS.map(({ icon: Icon, label, text }) => (
                   <button
@@ -363,7 +386,13 @@ export function ConceptChat() {
               <div ref={bottomRef} />
             </div>
             <div className="border-t border-border p-3 sm:px-4">
-              <Composer />
+              <Composer
+                input={input}
+                isStreaming={isStreaming}
+                onInputChange={setInput}
+                onSend={() => void sendMessage()}
+                inputRef={threadInputRef}
+              />
             </div>
           </>
         )}
