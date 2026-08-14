@@ -12,6 +12,11 @@ import {
   saveFocusedClientId,
   type StoredClient,
 } from "@/lib/clients-store";
+import {
+  greetingFirstName,
+  loadUserName,
+  saveUserName,
+} from "@/lib/user-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
@@ -94,9 +99,12 @@ export function WelcomeHome() {
   ]);
   const [focusedId, setFocusedId] = useState("citroen");
   const [hydrated, setHydrated] = useState(false);
-  const [phase, setPhase] = useState<"select" | "workspace">("select");
+  const [phase, setPhase] = useState<"name" | "select" | "workspace">("name");
+  const [userName, setUserName] = useState("");
+  const [nameDraft, setNameDraft] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const [dataDisclosureOpen, setDataDisclosureOpen] = useState(false);
   const [newClientName, setNewClientName] = useState("");
   const [newClientImage, setNewClientImage] = useState<string | undefined>();
   const [entered, setEntered] = useState(false);
@@ -111,6 +119,10 @@ export function WelcomeHome() {
     setFocusedId(
       stored.some((c) => c.id === focus) ? focus : (stored[0]?.id ?? "citroen"),
     );
+    const savedName = loadUserName();
+    setUserName(savedName);
+    setNameDraft(savedName);
+    setPhase(savedName ? "select" : "name");
     setHydrated(true);
   }, []);
 
@@ -125,11 +137,13 @@ export function WelcomeHome() {
   }, [focusedId, hydrated]);
 
   const focused = clients.find((c) => c.id === focusedId) ?? clients[0];
+  const greetName = greetingFirstName(userName);
 
   useEffect(() => {
+    setEntered(false);
     const id = window.requestAnimationFrame(() => setEntered(true));
     return () => window.cancelAnimationFrame(id);
-  }, []);
+  }, [phase]);
 
   async function handleAddClient(e: React.FormEvent) {
     e.preventDefault();
@@ -181,14 +195,74 @@ export function WelcomeHome() {
     setNewClientImage(await readImageAsDataUrl(file));
   }
 
+  function handleNameContinue(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = nameDraft.trim();
+    if (!trimmed) return;
+    saveUserName(trimmed);
+    setUserName(trimmed);
+    setPhase("select");
+  }
+
   function enterWorkspace() {
     setOptionsOpen(false);
     setPhase("workspace");
+    setDataDisclosureOpen(true);
   }
 
   function goBackToSelect() {
     setPhase("select");
     setOptionsOpen(false);
+    setDataDisclosureOpen(false);
+  }
+
+  if (!hydrated) {
+    return (
+      <div className="relative flex h-full flex-col items-center justify-center overflow-hidden px-4" />
+    );
+  }
+
+  if (phase === "name") {
+    return (
+      <div className="relative flex h-full flex-col items-center justify-center overflow-y-auto px-4 select-none">
+        <div
+          className={cn(
+            "relative z-10 w-full max-w-md text-center transition-all duration-700",
+            entered ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0",
+          )}
+        >
+          <p className="text-sm tracking-[0.2em] text-muted-foreground uppercase">
+            Review Desk
+          </p>
+          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+            What&apos;s your name?
+          </h1>
+          <p className="mt-3 text-base text-muted-foreground">
+            We&apos;ll use it to greet you before you pick a client.
+          </p>
+          <form
+            onSubmit={handleNameContinue}
+            className="mt-10 space-y-4 text-left select-text"
+          >
+            <Input
+              autoFocus
+              placeholder="Your name"
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              className="h-11 border-border bg-foreground/5 text-center text-base text-foreground placeholder:text-muted-foreground/80"
+              aria-label="Your name"
+            />
+            <Button
+              type="submit"
+              disabled={!nameDraft.trim()}
+              className="h-11 w-full"
+            >
+              Continue
+            </Button>
+          </form>
+        </div>
+      </div>
+    );
   }
 
   if (phase === "workspace") {
@@ -205,7 +279,7 @@ export function WelcomeHome() {
             Review Desk · {focused.name}
           </p>
           <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-            Welcome back, Elisah
+            Welcome back, {greetName}
           </h1>
 
           <div className="mt-12 grid gap-3 text-left sm:grid-cols-2">
@@ -230,6 +304,48 @@ export function WelcomeHome() {
             ))}
           </div>
         </div>
+
+        {dataDisclosureOpen && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm dark:bg-black/70"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="data-disclosure-title"
+            onClick={() => setDataDisclosureOpen(false)}
+          >
+            <div
+              className="relative w-full max-w-md rounded-2xl border border-border bg-popover p-5 shadow-2xl select-text"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <h2
+                  id="data-disclosure-title"
+                  className="pr-8 text-base font-semibold text-foreground"
+                >
+                  About the data in this demo
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setDataDisclosureOpen(false)}
+                  aria-label="Close"
+                  className="absolute top-4 right-4 rounded-md p-1 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                All the numbers and reference data shown in this model were
+                provided by Citroën. The data is real client data from Citroën,
+                and Review Desk answers on that basis.
+              </p>
+              <div className="mt-5 flex justify-end">
+                <Button type="button" onClick={() => setDataDisclosureOpen(false)}>
+                  Got it
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -243,7 +359,7 @@ export function WelcomeHome() {
         )}
       >
         <h1 className="text-center text-3xl font-semibold tracking-tight text-foreground sm:text-5xl">
-          Welcome back, Elisah
+          Welcome back, {greetName}
         </h1>
         <p className="mt-3 text-center text-base text-muted-foreground sm:text-lg">
           Who&apos;s the client today?

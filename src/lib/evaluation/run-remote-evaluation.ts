@@ -5,6 +5,10 @@ import type {
   StepEvaluationResult,
 } from "@/lib/types";
 import {
+  compressImageForReview,
+  isHeicLike,
+} from "@/lib/media/compress-image";
+import {
   extractVideoFrames,
   isVideoFile,
 } from "@/lib/media/extract-video-frames";
@@ -14,30 +18,10 @@ export type VisualFrame = {
   mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
 };
 
-export async function fileToBase64(file: File): Promise<VisualFrame> {
-  const buffer = await file.arrayBuffer();
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]!);
-  }
-  const base64 = btoa(binary);
-
-  const type = file.type;
-  const mediaType =
-    type === "image/png" ||
-    type === "image/gif" ||
-    type === "image/webp" ||
-    type === "image/jpeg"
-      ? type
-      : "image/jpeg";
-
-  return { base64, mediaType };
-}
-
 /**
  * Runs evaluation via /api/evaluate (Claude when key is set).
  * Videos are sampled into still frames before upload — Claude does not take video natively.
+ * Still images are resized/compressed so Mac/phone photos fit under Vercel body limits.
  */
 export async function runRemoteEvaluation(
   input: {
@@ -65,7 +49,18 @@ export async function runRemoteEvaluation(
       }));
     } else {
       visualKind = "image";
-      frames = [await fileToBase64(input.mediaFile)];
+      if (isHeicLike(input.mediaFile)) {
+        // Try canvas decode (works on Safari often); clear error if not.
+        try {
+          frames = [await compressImageForReview(input.mediaFile)];
+        } catch {
+          throw new Error(
+            "HEIC photos are not supported here. On Mac: export as JPEG (File → Export) or take a screenshot, then retry.",
+          );
+        }
+      } else {
+        frames = [await compressImageForReview(input.mediaFile)];
+      }
     }
   }
 
@@ -83,11 +78,28 @@ export async function runRemoteEvaluation(
     }),
   });
 
-  const data = (await response.json()) as {
+  const raw = await response.text();
+  let data: {
     error?: string;
     source?: "claude" | "rules";
     result?: FullEvaluationResult;
   };
+  try {
+    data = JSON.parse(raw) as typeof data;
+  } catch {
+    if (
+      response.status === 413 ||
+      /^request entity too large/i.test(raw.trim())
+    ) {
+      throw new Error(
+        "That image is too large for the server. Try a smaller JPG/PNG (under ~2MB).",
+      );
+    }
+    throw new Error(
+      raw.trim().slice(0, 160) ||
+        `Evaluation failed (HTTP ${response.status}).`,
+    );
+  }
 
   if (!response.ok || !data.result) {
     throw new Error(data.error || "Evaluation request failed");

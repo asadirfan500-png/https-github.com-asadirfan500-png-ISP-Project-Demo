@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useSidebar } from "@/components/layout/sidebar-context";
+import { loadUserName } from "@/lib/user-store";
 import { cn } from "@/lib/utils";
 import { ChevronRight, PanelLeft } from "lucide-react";
 
@@ -13,9 +14,31 @@ interface TopBarProps {
   subtitle?: string;
 }
 
+function initialsFromName(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "EM";
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
+  return `${parts[0]![0] ?? ""}${parts[1]![0] ?? ""}`.toUpperCase();
+}
+
 function UserMenu() {
   const [open, setOpen] = useState(false);
+  const [displayName, setDisplayName] = useState("Elisah M.");
   const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function refreshName() {
+      const saved = loadUserName();
+      setDisplayName(saved || "Elisah M.");
+    }
+    refreshName();
+    window.addEventListener("review-desk-user-name-changed", refreshName);
+    window.addEventListener("storage", refreshName);
+    return () => {
+      window.removeEventListener("review-desk-user-name-changed", refreshName);
+      window.removeEventListener("storage", refreshName);
+    };
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -57,11 +80,11 @@ function UserMenu() {
       >
         <Avatar className="size-7">
           <AvatarFallback className="bg-primary/10 text-xs font-medium text-primary">
-            EM
+            {initialsFromName(displayName)}
           </AvatarFallback>
         </Avatar>
         <div className="hidden text-left sm:block">
-          <p className="text-sm font-medium leading-none">Elisah M.</p>
+          <p className="text-sm font-medium leading-none">{displayName}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">Head of Social</p>
         </div>
       </button>

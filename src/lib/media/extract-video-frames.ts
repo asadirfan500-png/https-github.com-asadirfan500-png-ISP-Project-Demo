@@ -118,5 +118,7 @@ export function isVideoFile(file: File): boolean {
 }
 
 export function isImageFile(file: File): boolean {
-  return file.type.startsWith("image/");
+  if (file.type.startsWith("image/")) return true;
+  // Safari/macOS often leave empty type on Photos exports
+  return /\.(jpe?g|png|gif|webp|heic|heif)$/i.test(file.name);
 }

@@ -72,7 +72,9 @@ export function CreativeInputForm({
       const image = isImageFile(file);
 
       if (!video && !image) {
-        toast.error("Use an image (JPG/PNG) or a reel video (MP4/WebM/MOV).");
+        toast.error(
+          "Use an image (JPG/PNG/WebP) or a reel video (MP4/WebM/MOV). On Mac, export Photos as JPEG — HEIC can fail.",
+        );
         return;
       }
 
@@ -262,7 +264,7 @@ export function CreativeInputForm({
                   Drop image or reel, or click to upload
                 </p>
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  JPG, PNG, WebP · MP4, WebM, MOV
+                  JPG, PNG, WebP · MP4, WebM, MOV (avoid HEIC on Mac)
                 </p>
               </>
             )}
@@ -270,9 +272,14 @@ export function CreativeInputForm({
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*,video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
+            accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif,video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
             className="hidden"
-            onChange={(e) => handleMediaChange(e.target.files?.[0] ?? null)}
+            onChange={(e) => {
+              // Clear value so the same file can be re-selected (Safari-friendly)
+              const file = e.target.files?.[0] ?? null;
+              handleMediaChange(file);
+              e.target.value = "";
+            }}
           />
         </div>
 
