@@ -14,8 +14,10 @@ import {
 } from "@/lib/clients-store";
 import {
   greetingFirstName,
-  loadUserName,
-  saveUserName,
+  isProfileComplete,
+  loadUserProfile,
+  saveUserProfile,
+  type UserProfile,
 } from "@/lib/user-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +33,7 @@ import {
   MessageSquareText,
   Plus,
   Trash2,
+  UserRound,
   X,
 } from "lucide-react";
 
@@ -107,8 +110,13 @@ export function WelcomeHome() {
   const [focusedId, setFocusedId] = useState("citroen");
   const [hydrated, setHydrated] = useState(false);
   const [phase, setPhase] = useState<"name" | "select" | "workspace">("name");
-  const [userName, setUserName] = useState("");
+  const [profile, setProfile] = useState<UserProfile>({
+    name: "",
+    jobTitle: "",
+  });
   const [nameDraft, setNameDraft] = useState("");
+  const [jobTitleDraft, setJobTitleDraft] = useState("");
+  const [photoDraft, setPhotoDraft] = useState<string | undefined>();
   const [addOpen, setAddOpen] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [dataDisclosureOpen, setDataDisclosureOpen] = useState(false);
@@ -117,6 +125,7 @@ export function WelcomeHome() {
   const [entered, setEntered] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const addLogoInputRef = useRef<HTMLInputElement>(null);
+  const profilePhotoRef = useRef<HTMLInputElement>(null);
   const uid = useId();
 
   useEffect(() => {
@@ -126,10 +135,12 @@ export function WelcomeHome() {
     setFocusedId(
       stored.some((c) => c.id === focus) ? focus : (stored[0]?.id ?? "citroen"),
     );
-    const savedName = loadUserName();
-    setUserName(savedName);
-    setNameDraft(savedName);
-    setPhase(savedName ? "select" : "name");
+    const saved = loadUserProfile();
+    setProfile(saved);
+    setNameDraft(saved.name);
+    setJobTitleDraft(saved.jobTitle);
+    setPhotoDraft(saved.imageUrl);
+    setPhase(isProfileComplete(saved) ? "select" : "name");
     setHydrated(true);
   }, []);
 
@@ -144,7 +155,8 @@ export function WelcomeHome() {
   }, [focusedId, hydrated]);
 
   const focused = clients.find((c) => c.id === focusedId) ?? clients[0];
-  const greetName = greetingFirstName(userName);
+  const displayName = profile.name.trim() || greetingFirstName("", "there");
+  const displayTitle = profile.jobTitle.trim();
 
   useEffect(() => {
     setEntered(false);
@@ -202,12 +214,23 @@ export function WelcomeHome() {
     setNewClientImage(await readImageAsDataUrl(file));
   }
 
+  async function handleProfilePhoto(file: File | undefined) {
+    if (!file || !file.type.startsWith("image/")) return;
+    setPhotoDraft(await readImageAsDataUrl(file));
+  }
+
   function handleNameContinue(e: React.FormEvent) {
     e.preventDefault();
-    const trimmed = nameDraft.trim();
-    if (!trimmed) return;
-    saveUserName(trimmed);
-    setUserName(trimmed);
+    const name = nameDraft.trim();
+    const jobTitle = jobTitleDraft.trim();
+    if (!name || !jobTitle) return;
+    const next: UserProfile = {
+      name,
+      jobTitle,
+      imageUrl: photoDraft,
+    };
+    saveUserProfile(next);
+    setProfile(next);
     setPhase("select");
   }
 
@@ -242,15 +265,54 @@ export function WelcomeHome() {
             Review Desk
           </p>
           <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-            What&apos;s your name?
+            Tell us who you are
           </h1>
           <p className="mt-3 text-base text-muted-foreground">
-            We&apos;ll use it to greet you before you pick a client.
+            Name, job title, and an optional photo — we&apos;ll use them to greet
+            you.
           </p>
           <form
             onSubmit={handleNameContinue}
             className="mt-10 space-y-4 text-left select-text"
           >
+            <div className="flex flex-col items-center gap-2">
+              <button
+                type="button"
+                onClick={() => profilePhotoRef.current?.click()}
+                className="group relative"
+                aria-label="Upload profile photo"
+              >
+                {photoDraft ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={photoDraft}
+                    alt=""
+                    className="size-20 rounded-full object-cover ring-2 ring-border"
+                  />
+                ) : (
+                  <span className="flex size-20 items-center justify-center rounded-full border border-dashed border-foreground/25 bg-foreground/5 text-muted-foreground transition-colors group-hover:border-foreground/40 group-hover:text-foreground">
+                    <UserRound className="size-7" />
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => profilePhotoRef.current?.click()}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                {photoDraft ? "Change photo" : "Upload photo (optional)"}
+              </button>
+              <input
+                ref={profilePhotoRef}
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                onChange={(e) => {
+                  void handleProfilePhoto(e.target.files?.[0]);
+                  e.target.value = "";
+                }}
+              />
+            </div>
             <Input
               autoFocus
               placeholder="Your name"
@@ -259,9 +321,16 @@ export function WelcomeHome() {
               className="h-11 border-border bg-foreground/5 text-center text-base text-foreground placeholder:text-muted-foreground/80"
               aria-label="Your name"
             />
+            <Input
+              placeholder="Job title"
+              value={jobTitleDraft}
+              onChange={(e) => setJobTitleDraft(e.target.value)}
+              className="h-11 border-border bg-foreground/5 text-center text-base text-foreground placeholder:text-muted-foreground/80"
+              aria-label="Job title"
+            />
             <Button
               type="submit"
-              disabled={!nameDraft.trim()}
+              disabled={!nameDraft.trim() || !jobTitleDraft.trim()}
               className="h-11 w-full"
             >
               Continue
@@ -285,9 +354,13 @@ export function WelcomeHome() {
           <p className="text-sm tracking-[0.2em] text-muted-foreground uppercase">
             Review Desk · {focused.name}
           </p>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-            Welcome back, {greetName}
+          <p className="mt-3 text-sm text-muted-foreground">Welcome back,</p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+            {displayName}
           </h1>
+          {displayTitle ? (
+            <p className="mt-1 text-sm text-muted-foreground">({displayTitle})</p>
+          ) : null}
 
           <div className="mt-12 grid gap-3 text-left sm:grid-cols-2">
             {DESTINATIONS.map(({ href, label, description, icon: Icon }) => (
@@ -329,7 +402,7 @@ export function WelcomeHome() {
                   id="data-disclosure-title"
                   className="pr-8 text-base font-semibold text-foreground"
                 >
-                  About the data in this demo
+                  About this demo
                 </h2>
                 <button
                   type="button"
@@ -341,9 +414,14 @@ export function WelcomeHome() {
                 </button>
               </div>
               <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                All the numbers and reference data shown in this model were
-                provided by Citroën. The data is real client data from Citroën,
-                and Review Desk answers on that basis.
+                Review Desk gives preliminary advice only. Its scores and
+                recommendations come solely from the brand, audience and platform
+                guidance and the past examples we have loaded into it, so they are
+                only as reliable as that data and it can make mistakes. Treat the
+                results as an early signal to help you test pre-production concepts
+                and posts, not as a final verdict. Review Desk runs on the Claude
+                API, and the access we have set up for it expires on 13 September
+                2026.
               </p>
               <div className="mt-5 flex justify-end">
                 <Button type="button" onClick={() => setDataDisclosureOpen(false)}>
@@ -365,9 +443,17 @@ export function WelcomeHome() {
           entered ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0",
         )}
       >
-        <h1 className="text-center text-3xl font-semibold tracking-tight text-foreground sm:text-5xl">
-          Welcome back, {greetName}
+        <p className="text-center text-sm text-muted-foreground sm:text-base">
+          Welcome back,
+        </p>
+        <h1 className="mt-1 text-center text-3xl font-semibold tracking-tight text-foreground sm:text-5xl">
+          {displayName}
         </h1>
+        {displayTitle ? (
+          <p className="mt-1 text-center text-sm text-muted-foreground sm:text-base">
+            ({displayTitle})
+          </p>
+        ) : null}
         <p className="mt-3 text-center text-base text-muted-foreground sm:text-lg">
           Who&apos;s the client today?
         </p>

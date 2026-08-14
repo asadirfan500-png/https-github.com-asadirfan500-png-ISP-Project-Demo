@@ -1,130 +1,230 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useEffect, useId, useRef, useState } from "react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useSidebar } from "@/components/layout/sidebar-context";
-import { loadUserName } from "@/lib/user-store";
+import {
+  initialsFromName,
+  loadUserProfile,
+  saveUserProfile,
+  USER_PROFILE_CHANGED_EVENT,
+  type UserProfile,
+} from "@/lib/user-store";
 import { cn } from "@/lib/utils";
-import { ChevronRight, PanelLeft } from "lucide-react";
+import { ChevronRight, PanelLeft, UserRound, X } from "lucide-react";
 
 interface TopBarProps {
   breadcrumbs: { label: string; href?: string }[];
   subtitle?: string;
 }
 
-function initialsFromName(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "EM";
-  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
-  return `${parts[0]![0] ?? ""}${parts[1]![0] ?? ""}`.toUpperCase();
+function readImageAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 }
 
 function UserMenu() {
-  const [open, setOpen] = useState(false);
-  const [displayName, setDisplayName] = useState("Elisah M.");
-  const menuRef = useRef<HTMLDivElement>(null);
+  const [profile, setProfile] = useState<UserProfile>({
+    name: "",
+    jobTitle: "",
+  });
+  const [editOpen, setEditOpen] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [jobTitleDraft, setJobTitleDraft] = useState("");
+  const [photoDraft, setPhotoDraft] = useState<string | undefined>();
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const uid = useId();
 
   useEffect(() => {
-    function refreshName() {
-      const saved = loadUserName();
-      setDisplayName(saved || "Elisah M.");
+    function refresh() {
+      const saved = loadUserProfile();
+      setProfile(saved);
     }
-    refreshName();
-    window.addEventListener("review-desk-user-name-changed", refreshName);
-    window.addEventListener("storage", refreshName);
+    refresh();
+    window.addEventListener(USER_PROFILE_CHANGED_EVENT, refresh);
+    window.addEventListener("review-desk-user-name-changed", refresh);
+    window.addEventListener("storage", refresh);
     return () => {
-      window.removeEventListener("review-desk-user-name-changed", refreshName);
-      window.removeEventListener("storage", refreshName);
+      window.removeEventListener(USER_PROFILE_CHANGED_EVENT, refresh);
+      window.removeEventListener("review-desk-user-name-changed", refresh);
+      window.removeEventListener("storage", refresh);
     };
   }, []);
 
-  useEffect(() => {
-    if (!open) return;
+  function openEdit() {
+    setNameDraft(profile.name);
+    setJobTitleDraft(profile.jobTitle);
+    setPhotoDraft(profile.imageUrl);
+    setEditOpen(true);
+  }
 
-    function handlePointerDown(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
+  async function handlePhoto(file: File | undefined) {
+    if (!file || !file.type.startsWith("image/")) return;
+    setPhotoDraft(await readImageAsDataUrl(file));
+  }
 
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
-    }
-
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
+  function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    const name = nameDraft.trim();
+    const jobTitle = jobTitleDraft.trim();
+    if (!name || !jobTitle) return;
+    const next: UserProfile = {
+      name,
+      jobTitle,
+      imageUrl: photoDraft,
     };
-  }, [open]);
+    saveUserProfile(next);
+    setProfile(next);
+    setEditOpen(false);
+  }
 
-  const menuItems = [
-    { label: "Profile", action: () => toast.message("Profile", { description: "Not available in this demo." }) },
-    { label: "Settings", action: () => toast.message("Settings", { description: "Not available in this demo." }) },
-    { label: "Sign out", action: () => toast.message("Sign out", { description: "Not available in this demo." }), separator: true },
-  ];
+  const displayName = profile.name.trim() || "Guest";
+  const displayTitle = profile.jobTitle.trim() || "—";
 
   return (
-    <div className="relative" ref={menuRef}>
+    <>
       <button
         type="button"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={openEdit}
         className="flex items-center gap-2 rounded-md px-2 py-1.5 outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+        aria-label="Edit profile"
       >
-        <Avatar className="size-7">
+        <Avatar className="size-8">
+          {profile.imageUrl ? (
+            <AvatarImage src={profile.imageUrl} alt="" className="object-cover" />
+          ) : null}
           <AvatarFallback className="bg-primary/10 text-xs font-medium text-primary">
             {initialsFromName(displayName)}
           </AvatarFallback>
         </Avatar>
-        <div className="hidden text-left sm:block">
-          <p className="text-sm font-medium leading-none">{displayName}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">Head of Social</p>
+        <div className="hidden min-w-0 text-left sm:block">
+          <p className="truncate text-sm font-medium leading-none">
+            {displayName}
+          </p>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+            {displayTitle}
+          </p>
         </div>
       </button>
 
-      {open && (
+      {editOpen && (
         <div
-          role="menu"
-          className={cn(
-            "absolute right-0 top-[calc(100%+4px)] z-[200] w-48 overflow-hidden rounded-xl p-1",
-            "border border-border bg-popover/96 text-popover-foreground shadow-[0_8px_32px_rgba(0,0,0,0.25)]",
-            "ring-1 ring-inset ring-border backdrop-blur-2xl backdrop-saturate-150",
-          )}
+          className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm dark:bg-black/70"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={`${uid}-edit-title`}
+          onClick={() => setEditOpen(false)}
         >
-          <p className="px-2.5 py-2 text-xs font-medium text-muted-foreground">
-            33Seconds
-          </p>
-          <div className="my-1 h-px bg-border" />
-          {menuItems.map((item) => (
-            <div key={item.label}>
-              {item.separator && <div className="my-1 h-px bg-border" />}
+          <div
+            className="relative w-full max-w-sm rounded-2xl border border-border bg-popover p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <h2
+                id={`${uid}-edit-title`}
+                className="text-base font-semibold text-foreground"
+              >
+                Edit profile
+              </h2>
               <button
                 type="button"
-                role="menuitem"
-                onClick={() => {
-                  item.action();
-                  setOpen(false);
-                }}
-                className={cn(
-                  "flex w-full rounded-lg px-2.5 py-2 text-left text-sm outline-none transition-colors",
-                  "hover:bg-accent active:bg-accent/80",
-                  "focus-visible:bg-accent focus-visible:text-foreground",
-                )}
+                onClick={() => setEditOpen(false)}
+                aria-label="Close"
+                className="rounded-md p-1 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
               >
-                {item.label}
+                <X className="size-4" />
               </button>
             </div>
-          ))}
+            <p className="mt-1 text-sm text-muted-foreground">
+              Update your name, job title, or photo.
+            </p>
+            <form onSubmit={handleSave} className="mt-4 space-y-4">
+              <div className="flex flex-col items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => photoInputRef.current?.click()}
+                  className="group relative"
+                  aria-label="Change profile photo"
+                >
+                  {photoDraft ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={photoDraft}
+                      alt=""
+                      className="size-20 rounded-full object-cover ring-2 ring-border"
+                    />
+                  ) : (
+                    <span className="flex size-20 items-center justify-center rounded-full border border-dashed border-foreground/25 bg-foreground/5 text-muted-foreground transition-colors group-hover:border-foreground/40 group-hover:text-foreground">
+                      <UserRound className="size-7" />
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => photoInputRef.current?.click()}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  {photoDraft ? "Change photo" : "Upload photo"}
+                </button>
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  onChange={(e) => {
+                    void handlePhoto(e.target.files?.[0]);
+                    e.target.value = "";
+                  }}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Name
+                </label>
+                <Input
+                  value={nameDraft}
+                  onChange={(e) => setNameDraft(e.target.value)}
+                  placeholder="Your name"
+                  className="border-border bg-foreground/5"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Job title
+                </label>
+                <Input
+                  value={jobTitleDraft}
+                  onChange={(e) => setJobTitleDraft(e.target.value)}
+                  placeholder="Job title"
+                  className="border-border bg-foreground/5"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setEditOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={!nameDraft.trim() || !jobTitleDraft.trim()}
+                >
+                  Save
+                </Button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
