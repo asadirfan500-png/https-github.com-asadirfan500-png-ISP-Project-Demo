@@ -22,6 +22,8 @@ interface AnimatedContentProps extends React.HTMLAttributes<HTMLDivElement> {
   disappearAfter?: number;
   disappearDuration?: number;
   disappearEase?: string;
+  /** Skip scroll trigger and play as soon as the element mounts (e.g. tab panels). */
+  immediate?: boolean;
   onComplete?: () => void;
   onDisappearanceComplete?: () => void;
 }
@@ -42,6 +44,7 @@ const AnimatedContent: React.FC<AnimatedContentProps> = ({
   disappearAfter = 0,
   disappearDuration = 0.5,
   disappearEase = 'power3.in',
+  immediate = false,
   onComplete,
   onDisappearanceComplete,
   className = '',
@@ -101,12 +104,39 @@ const AnimatedContent: React.FC<AnimatedContentProps> = ({
       ease
     });
 
+    if (immediate) {
+      tl.play();
+      return () => {
+        tl.kill();
+      };
+    }
+
     const st = ScrollTrigger.create({
       trigger: el,
       scroller: scrollerTarget || window,
       start: `top ${startPct}%`,
       once: true,
       onEnter: () => tl.play()
+    });
+
+    const playIfInView = () => {
+      ScrollTrigger.refresh();
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) return false;
+      if (rect.top <= window.innerHeight * (startPct / 100) && rect.bottom > 0) {
+        tl.play();
+        return true;
+      }
+      return false;
+    };
+
+    // Late-mounted UI (tabs, dialogs) often misses the first onEnter.
+    requestAnimationFrame(() => {
+      if (!playIfInView()) {
+        requestAnimationFrame(() => {
+          playIfInView();
+        });
+      }
     });
 
     return () => {
@@ -128,6 +158,7 @@ const AnimatedContent: React.FC<AnimatedContentProps> = ({
     disappearAfter,
     disappearDuration,
     disappearEase,
+    immediate,
     onComplete,
     onDisappearanceComplete
   ]);

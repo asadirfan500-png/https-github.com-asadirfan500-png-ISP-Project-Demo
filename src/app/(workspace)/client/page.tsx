@@ -65,7 +65,7 @@ export default function ClientBriefPage() {
         </div>
 
         <TabsContent value="voice" className="mt-4 space-y-4">
-          <AnimatedContent key="voice" distance={28} duration={0.55}>
+          <AnimatedContent key="voice" immediate distance={28} duration={0.55}>
             <div className="rounded-lg border border-border bg-card/80 p-5 shadow-sm backdrop-blur-sm">
               <h3 className="mb-3 text-sm font-semibold">Voice traits</h3>
               <div className="space-y-3">
@@ -136,7 +136,7 @@ export default function ClientBriefPage() {
         </TabsContent>
 
         <TabsContent value="audience" className="mt-4">
-          <AnimatedContent key="audience" distance={28} duration={0.55}>
+          <AnimatedContent key="audience" immediate distance={28} duration={0.55}>
             <p className="mb-4 text-sm text-muted-foreground">
               Six Everyday Outsiders personas seeded from TGI index scores — the
               same panel Claude uses in review.
@@ -167,7 +167,7 @@ export default function ClientBriefPage() {
         </TabsContent>
 
         <TabsContent value="platforms" className="mt-4 space-y-4">
-          <AnimatedContent key="platforms" distance={28} duration={0.55}>
+          <AnimatedContent key="platforms" immediate distance={28} duration={0.55}>
             {PLATFORMS.map((platform) => (
               <div
                 key={platform.id}
