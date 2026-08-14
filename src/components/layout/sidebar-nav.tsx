@@ -23,6 +23,7 @@ import {
   History,
   Home,
   LayoutDashboard,
+  MessageSquareText,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
@@ -31,6 +32,7 @@ const WORKSPACE_LINKS = [
   { href: "/", label: "Home", icon: Home },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/review", label: "Review", icon: ClipboardList },
+  { href: "/concept", label: "Concept Check", icon: MessageSquareText },
   { href: "/history", label: "History", icon: History },
 ];
 

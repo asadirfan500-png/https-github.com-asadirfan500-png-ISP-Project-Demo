@@ -31,6 +31,7 @@ import {
   ClipboardList,
   Clock,
   Inbox,
+  MessageSquareText,
 } from "lucide-react";
 
 export default function DashboardPage() {
@@ -133,6 +134,28 @@ export default function DashboardPage() {
             </span>
           </p>
         </div>
+      </AnimatedContent>
+
+      <AnimatedContent distance={30} duration={0.6} delay={0.05} className="mb-6">
+        <Link
+          href="/concept"
+          className="group flex items-start gap-3 rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm transition-colors hover:border-primary/40 hover:bg-card"
+        >
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-muted/30 text-muted-foreground transition-colors group-hover:border-primary/40 group-hover:text-foreground">
+            <MessageSquareText className="size-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-foreground">
+                Concept Check
+              </p>
+              <ArrowRight className="size-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Pressure-test an idea before you produce it.
+            </p>
+          </div>
+        </Link>
       </AnimatedContent>
 
       <AnimatedContent distance={40} duration={0.7} delay={0.1}>

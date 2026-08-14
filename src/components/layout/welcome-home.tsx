@@ -28,6 +28,7 @@ import {
   History,
   ImagePlus,
   LayoutDashboard,
+  MessageSquareText,
   Plus,
   Trash2,
   X,
@@ -45,6 +46,12 @@ const DESTINATIONS = [
     label: "Start a review",
     description: "Check a post before client sign-off",
     icon: ClipboardList,
+  },
+  {
+    href: "/concept",
+    label: "Concept Check",
+    description: "Pressure-test an idea before you produce it.",
+    icon: MessageSquareText,
   },
   {
     href: "/history",

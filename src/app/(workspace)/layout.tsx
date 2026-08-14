@@ -19,6 +19,10 @@ const PAGE_META: Record<
     breadcrumbs: [{ label: "Workspace" }, { label: "Review" }],
     subtitle: "Submit creative for pre-client sign-off checks",
   },
+  "/concept": {
+    breadcrumbs: [{ label: "Workspace" }, { label: "Concept Check" }],
+    subtitle: "Pressure-test an idea before you produce it",
+  },
   "/history": {
     breadcrumbs: [{ label: "Workspace" }, { label: "History" }],
     subtitle: "Past review sessions",

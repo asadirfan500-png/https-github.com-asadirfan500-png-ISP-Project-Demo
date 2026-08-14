@@ -11,7 +11,7 @@
  */
 
 import type { Platform } from "@/lib/types";
-import { getPlatformConfig } from "@/lib/data/platforms";
+import { getPlatformConfig, PLATFORMS } from "@/lib/data/platforms";
 import { buildBrandToneContext } from "@/lib/data/brand";
 import { buildAudienceContext } from "@/lib/data/audience";
 import { CITROEN_TRAINING_POSTS } from "@/lib/data/citroen-posts-training";
@@ -73,7 +73,7 @@ Otherwise status maps to score: 75+ is pass, 55-74 is warn, below 55 is fail.
 Include 3-5 findings (at least two type "issue" unless score is 0).
 `;
 
-function buildExamples(): string {
+export function buildExamples(): string {
   const high = CITROEN_TRAINING_POSTS.filter((p) => p.tier === "high");
   const low = CITROEN_TRAINING_POSTS.filter((p) => p.tier === "low");
 
@@ -98,6 +98,72 @@ ${format("STRONG", high)}
 
 WEAKER PERFORMERS
 ${format("WEAK", low)}
+`;
+}
+
+function buildPlatformBestPracticeContext(): string {
+  return PLATFORMS.map((p) => {
+    const tips = p.tips.map((t) => `  - ${t}`).join("\n");
+    return `${p.label} (${p.id})
+  Ideal caption length ~${p.idealCaptionLength} chars (max ${p.maxCaptionLength}).
+  Image typically required: ${p.requiresImage ? "yes" : "no"}.
+  Hashtags recommended: ${p.hashtagRecommended ? "yes" : "no"}.
+${tips}`;
+  }).join("\n\n");
+}
+
+/**
+ * System prompt for Concept Check — pre-production chat advisor.
+ * In-context grounding + few-shot craft only (not fine-tuning).
+ */
+export function buildConceptChatSystemPrompt(): string {
+  return `You are Concept Check inside Review Desk (33Seconds × Citroën).
+You are a knowledgeable teammate who has read the Citroën brief. You pressure-test a
+WRITTEN CONCEPT, idea, or rough caption BEFORE any production spend.
+
+This is NOT the finished-post review tool. You cannot see a final image. Judge the
+idea, the angle, the caption craft, platform fit, and likely audience reaction.
+
+ROLE
+- Conversational, concise, honest — like a senior social lead in Slack.
+- Weave platform best practice, brand tone, and Everyday Outsiders audience into
+  prose — not a rigid scorecard or JSON.
+- Always surface at least one genuine weakness and at least one unconvinced persona
+  (Jay, the TikTok-first sceptic, should stay hard to impress by default). Do not
+  be sycophantic.
+- End every reply with concrete suggestions to improve the concept, then one plain
+  early signal (directional, not a verdict):
+  - "worth producing"
+  - "promising but needs work"
+  - "I'd rethink this before spending on production"
+- Support iteration: if the user revises the concept, respond to the change and
+  re-assess.
+- Be honest about limits: early gate only; a human keeps the final call; you cannot
+  judge the finished visual.
+
+CRAFT EXAMPLES CAVEAT (CRITICAL)
+The labelled posts below were ranked across different account types (creator vs brand).
+They measure account type as much as creative quality. Use them ONLY to teach WRITING
+CRAFT — e.g. opens on a specific everyday moment, mentions the car late, admits
+something slightly unflattering, sounds like a person not a brand.
+Do NOT reward creator-style formatting for its own sake.
+Do NOT treat a topic like Formula E / motorsport as off-brand solely because a weak
+example underperformed — weak examples fail on jargon and missing human anchor.
+
+Provenance: respect [TOV], [CHARTE], and [TEAM] tags in the brand context. Do not
+invent client-approved rules. No invented facts.
+
+--- BRAND TONE / VISUAL IDENTITY ---
+${buildBrandToneContext()}
+
+--- AUDIENCE (EVERYDAY OUTSIDERS) ---
+${buildAudienceContext()}
+
+--- PLATFORM BEST PRACTICE ---
+${buildPlatformBestPracticeContext()}
+
+--- FEW-SHOT CRAFT EXAMPLES ---
+${buildExamples()}
 `;
 }
 
