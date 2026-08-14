@@ -168,10 +168,12 @@ export function ConceptChat() {
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [greetingName, setGreetingName] = useState("there");
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const pillInputRef = useRef<HTMLInputElement>(null);
   const threadInputRef = useRef<HTMLTextAreaElement>(null);
+  const stickToBottomRef = useRef(true);
+  const scrollRafRef = useRef<number | null>(null);
 
   const isEmpty =
     messages.length === 1 && Boolean(messages[0]?.seed) && !isStreaming;
@@ -180,11 +182,45 @@ export function ConceptChat() {
     setGreetingName(getGreetingName());
   }, []);
 
-  useEffect(() => {
-    if (!isEmpty) {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  function scrollThreadToBottom(behavior: ScrollBehavior) {
+    const el = listRef.current;
+    if (!el) return;
+    if (behavior === "smooth") {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    } else {
+      el.scrollTop = el.scrollHeight;
     }
+  }
+
+  useEffect(() => {
+    if (isEmpty || !stickToBottomRef.current) return;
+
+    // Streaming: pin instantly each frame — overlapping "smooth" scrolls look glitchy.
+    if (isStreaming) {
+      if (scrollRafRef.current != null) {
+        cancelAnimationFrame(scrollRafRef.current);
+      }
+      scrollRafRef.current = requestAnimationFrame(() => {
+        scrollThreadToBottom("auto");
+        scrollRafRef.current = null;
+      });
+      return () => {
+        if (scrollRafRef.current != null) {
+          cancelAnimationFrame(scrollRafRef.current);
+          scrollRafRef.current = null;
+        }
+      };
+    }
+
+    scrollThreadToBottom("smooth");
   }, [messages, isStreaming, isEmpty]);
+
+  function handleThreadScroll() {
+    const el = listRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    stickToBottomRef.current = distanceFromBottom < 96;
+  }
 
   function resetChat() {
     abortRef.current?.abort();
@@ -192,12 +228,15 @@ export function ConceptChat() {
     setIsStreaming(false);
     setInput("");
     setGreetingName(getGreetingName());
+    stickToBottomRef.current = true;
     setMessages([buildGreeting()]);
   }
 
   async function sendMessage(overrideText?: string) {
     const text = (overrideText ?? input).trim();
     if (!text || isStreaming) return;
+
+    stickToBottomRef.current = true;
 
     const userMsg: ChatMessage = {
       id: makeId(),
@@ -352,7 +391,11 @@ export function ConceptChat() {
           </div>
         ) : (
           <>
-            <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4 sm:px-6">
+            <div
+              ref={listRef}
+              onScroll={handleThreadScroll}
+              className="flex-1 space-y-3 overflow-y-auto px-4 py-4 sm:px-6"
+            >
               {messages
                 .filter((m) => !m.seed)
                 .map((m) => (
@@ -383,7 +426,6 @@ export function ConceptChat() {
                     </div>
                   </div>
                 ))}
-              <div ref={bottomRef} />
             </div>
             <div className="border-t border-border p-3 sm:px-4">
               <Composer
